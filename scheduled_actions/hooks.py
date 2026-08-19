@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
-# app_include_js = "/assets/scheduled_actions/js/scheduled_actions.js"
+app_include_js = "/assets/scheduled_actions/js/schedule_menu.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
@@ -143,23 +143,13 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"scheduled_actions.tasks.all"
-# 	],
-# 	"daily": [
-# 		"scheduled_actions.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"scheduled_actions.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"scheduled_actions.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"scheduled_actions.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"* * * * *": [
+			"scheduled_actions.tasks.run_due_actions"
+		]
+	}
+}
 
 # Testing
 # -------
