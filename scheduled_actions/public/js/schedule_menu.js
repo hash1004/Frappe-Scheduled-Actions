@@ -3,19 +3,20 @@
 // own client script.
 frappe.provide("scheduled_actions");
 
-$(document).on("app_ready", () => {
-	if (frappe.ui.form.Form.prototype.__scheduled_actions_patched) return;
-	frappe.ui.form.Form.prototype.__scheduled_actions_patched = true;
-
-	const original_refresh = frappe.ui.form.Form.prototype.refresh;
-	frappe.ui.form.Form.prototype.refresh = function () {
-		original_refresh.apply(this, arguments);
-		try {
-			scheduled_actions.add_menu_items(this);
-		} catch (e) {
-			console.error(e); // eslint-disable-line no-console
-		}
-	};
+// Frappe fires this document event from inside Form.render_form(), right
+// after refresh_header() has rebuilt the page toolbar/menu and before
+// doctype-specific `refresh` client scripts run - the correct, public hook
+// for exactly this. (Monkey-patching Form.prototype.refresh doesn't work
+// here: its internals run through frappe.run_serially(), which is
+// asynchronous, so code appended after calling the original refresh() races
+// ahead of refresh_header() and either finds frm.page not ready yet or gets
+// its menu item wiped when refresh_header() rebuilds the toolbar.)
+$(document).on("form-refresh", (event, frm) => {
+	try {
+		scheduled_actions.add_menu_items(frm);
+	} catch (e) {
+		console.error(e); // eslint-disable-line no-console
+	}
 });
 
 scheduled_actions.add_menu_items = function (frm) {
