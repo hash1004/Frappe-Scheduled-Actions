@@ -132,13 +132,11 @@ app_include_js = "/assets/scheduled_actions/js/schedule_menu.js"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"*": {
+		"validate": "scheduled_actions.utils.block_edit_while_scheduled",
+	}
+}
 
 # Scheduled Tasks
 # ---------------

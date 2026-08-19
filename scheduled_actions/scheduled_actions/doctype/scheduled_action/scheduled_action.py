@@ -27,6 +27,17 @@ class ScheduledAction(Document):
 		if not frappe.db.exists(self.reference_doctype, self.reference_name):
 			frappe.throw(_("{0} {1} does not exist").format(self.reference_doctype, self.reference_name))
 
+		if self.is_new():
+			from scheduled_actions.utils import get_pending_action_name
+
+			existing = get_pending_action_name(self.reference_doctype, self.reference_name)
+			if existing:
+				frappe.throw(
+					_("{0} already has a pending scheduled action ({1}). Cancel it first.").format(
+						self.reference_name, existing
+					)
+				)
+
 		# The scheduling user must actually be able to perform the action
 		# they're scheduling - schedule time is not a way to gain access
 		# you don't already have.

@@ -44,6 +44,10 @@ def execute_action(name):
 			return
 
 		target = frappe.get_doc(action.reference_doctype, action.reference_name)
+		# This action's own row is still Pending at this point (only flips to
+		# Executed below), which would otherwise trip the pending-action lock
+		# on the very save/submit/cancel it's meant to perform.
+		target.flags.ignore_scheduled_action_lock = True
 
 		if action.action_type == "Submit":
 			if target.docstatus != 0:

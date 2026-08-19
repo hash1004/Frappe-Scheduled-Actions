@@ -1,6 +1,23 @@
 import frappe
 from frappe import _
 
+from scheduled_actions.utils import get_pending_action_name
+
+
+@frappe.whitelist()
+def get_pending_action(reference_doctype, reference_name):
+	"""Used by the client to decide whether to lock the form and to show
+	what's pending, if anything."""
+	name = get_pending_action_name(reference_doctype, reference_name)
+	if not name:
+		return None
+	return frappe.db.get_value(
+		"Scheduled Action",
+		name,
+		["name", "action_type", "field_name", "scheduled_for", "scheduled_by"],
+		as_dict=True,
+	)
+
 
 @frappe.whitelist()
 def create_scheduled_action(
