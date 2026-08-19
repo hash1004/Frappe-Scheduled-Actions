@@ -20,6 +20,22 @@ $(document).on("form-refresh", (event, frm) => {
 	}
 });
 
+// app_include_js is injected as a dynamically-created <script> tag *after*
+// libs.bundle.js, not as a static synchronous tag - on a full page load
+// (e.g. opening a document link directly, or a hard refresh) that script
+// can finish loading and run this file *after* the very first form-refresh
+// has already fired, so the listener above misses it. Cover that case by
+// running setup once immediately for whatever form is already open when
+// this file executes; every navigation/save after that goes through the
+// event listener as normal.
+if (window.cur_frm && cur_frm.doc) {
+	try {
+		scheduled_actions.setup_form(cur_frm);
+	} catch (e) {
+		console.error(e); // eslint-disable-line no-console
+	}
+}
+
 scheduled_actions.setup_form = function (frm) {
 	if (!frm || !frm.doc || frm.is_new() || frm.doctype === "Scheduled Action") return;
 
