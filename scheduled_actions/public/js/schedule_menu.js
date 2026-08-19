@@ -21,8 +21,13 @@ $(document).on("app_ready", () => {
 scheduled_actions.add_menu_items = function (frm) {
 	if (!frm || !frm.doc || frm.is_new() || frm.doctype === "Scheduled Action") return;
 
-	const can_write = frappe.perm.has_perm(frm.doctype, 0, "write");
-	const can_submit = frappe.perm.has_perm(frm.doctype, 0, "submit");
+	// frm.perm[0] reflects this exact document's resolved permissions - the
+	// same source Frappe's own toolbar buttons (Submit/Cancel/etc) read from.
+	// frappe.perm.has_perm() reads a different, not-always-populated cache
+	// and silently returns false here, which is why the menu items were
+	// never appearing.
+	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
+	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
 
 	if (frm.meta.is_submittable && frm.doc.docstatus === 0 && can_submit) {
 		frm.page.add_menu_item(__("Schedule Submit..."), () =>
