@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
-# app_include_js = "/assets/scheduled_actions/js/scheduled_actions.js"
+app_include_js = "/assets/scheduled_actions/js/schedule_menu.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
@@ -132,34 +132,22 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"*": {
+		"validate": "scheduled_actions.utils.block_edit_while_scheduled",
+	}
+}
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"scheduled_actions.tasks.all"
-# 	],
-# 	"daily": [
-# 		"scheduled_actions.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"scheduled_actions.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"scheduled_actions.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"scheduled_actions.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"* * * * *": [
+			"scheduled_actions.tasks.run_due_actions"
+		]
+	}
+}
 
 # Testing
 # -------

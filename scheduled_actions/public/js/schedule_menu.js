@@ -1,0 +1,206 @@
+// Adds Scheduled Actions to every form: menu items in the ... dropdown, a
+// "Schedule..." link in the sidebar next to Assign/Attach/Share, and a
+// read-only lock (with banner) when a Scheduled Action is already Pending
+// against the open document.
+frappe.provide("scheduled_actions");
+
+// Frappe fires this document event from inside Form.render_form(), right
+// after refresh_header() has rebuilt the page toolbar/menu and before
+// doctype-specific `refresh` client scripts run - the correct, public hook
+// for exactly this. (Monkey-patching Form.prototype.refresh doesn't work
+// here: its internals run through frappe.run_serially(), which is
+// asynchronous, so code appended after calling the original refresh() races
+// ahead of refresh_header() and either finds frm.page not ready yet or gets
+// its menu item wiped when refresh_header() rebuilds the toolbar.)
+$(document).on("form-refresh", (event, frm) => {
+	try {
+		scheduled_actions.setup_form(frm);
+	} catch (e) {
+		console.error(e); // eslint-disable-line no-console
+	}
+});
+
+// app_include_js is injected as a dynamically-created <script> tag *after*
+// libs.bundle.js, not as a static synchronous tag - on a full page load
+// (e.g. opening a document link directly, or a hard refresh) that script
+// can finish loading and run this file *after* the very first form-refresh
+// has already fired, so the listener above misses it. Cover that case by
+// running setup once immediately for whatever form is already open when
+// this file executes; every navigation/save after that goes through the
+// event listener as normal.
+if (window.cur_frm && cur_frm.doc) {
+	try {
+		scheduled_actions.setup_form(cur_frm);
+	} catch (e) {
+		console.error(e); // eslint-disable-line no-console
+	}
+}
+
+scheduled_actions.setup_form = function (frm) {
+	if (!frm || !frm.doc || frm.is_new() || frm.doctype === "Scheduled Action") return;
+
+	frappe.call({
+		method: "scheduled_actions.api.get_pending_action",
+		args: { reference_doctype: frm.doctype, reference_name: frm.docname },
+		callback: (r) => {
+			if (r.message) {
+				scheduled_actions.lock_form(frm, r.message);
+			} else {
+				scheduled_actions.add_menu_items(frm);
+				scheduled_actions.add_sidebar_action(frm);
+			}
+		},
+	});
+};
+
+scheduled_actions.lock_form = function (frm, pending) {
+	frm.disable_form();
+	frm.set_intro(
+		__("Locked: {0} is scheduled for {1} ({2})", [
+			pending.action_type,
+			frappe.datetime.str_to_user(pending.scheduled_for),
+			`<a href="/app/scheduled-action/${pending.name}">${__("view")}</a>`,
+		]),
+		"orange"
+	);
+};
+
+scheduled_actions.add_menu_items = function (frm) {
+	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
+	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
+
+	if (frm.meta.is_submittable && frm.doc.docstatus === 0 && can_submit) {
+		frm.page.add_menu_item(__("Schedule Submit..."), () =>
+			scheduled_actions.open_dialog(frm, "Submit")
+		);
+	}
+
+	if (frm.meta.is_submittable && frm.doc.docstatus === 1 && can_submit) {
+		frm.page.add_menu_item(__("Schedule Cancel..."), () =>
+			scheduled_actions.open_dialog(frm, "Cancel")
+		);
+	}
+
+	if (can_write) {
+		frm.page.add_menu_item(__("Schedule Field Change..."), () =>
+			scheduled_actions.open_dialog(frm, "Set Field")
+		);
+	}
+};
+
+scheduled_actions.add_sidebar_action = function (frm) {
+	if (!frm.sidebar || !frm.sidebar.sidebar) return; // form sidebar disabled
+	if (frm.sidebar.sidebar.find(".schedule-action-link").length) return; // already added this render
+
+	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
+	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
+	if (!can_write && !can_submit) return;
+
+	frm.sidebar
+		.add_user_action(__("Schedule..."), () => scheduled_actions.open_dialog(frm))
+		.addClass("schedule-action-link");
+};
+
+// action_type omitted (sidebar entry point) -> dialog includes a picker.
+// action_type given (a specific menu item) -> dialog skips straight to it.
+scheduled_actions.open_dialog = function (frm, action_type) {
+	const can_submit_now = frm.meta.is_submittable && frm.doc.docstatus === 0 && frm.perm[0].submit;
+	const can_cancel_now = frm.meta.is_submittable && frm.doc.docstatus === 1 && frm.perm[0].submit;
+	const can_set_field = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
+
+	const fields = [];
+
+	if (!action_type) {
+		const options = [];
+		if (can_submit_now) options.push({ label: __("Submit"), value: "Submit" });
+		if (can_cancel_now) options.push({ label: __("Cancel"), value: "Cancel" });
+		if (can_set_field) options.push({ label: __("Set Field"), value: "Set Field" });
+
+		fields.push({
+			fieldname: "action_type",
+			fieldtype: "Select",
+			label: __("Action"),
+			reqd: 1,
+			options,
+			default: options[0] && options[0].value,
+		});
+	}
+
+	fields.push(
+		{
+			fieldname: "field_name",
+			fieldtype: "Select",
+			label: __("Field"),
+			options: [],
+			depends_on: action_type
+				? action_type === "Set Field"
+				: 'eval:doc.action_type=="Set Field"',
+			mandatory_depends_on: action_type
+				? action_type === "Set Field"
+				: 'eval:doc.action_type=="Set Field"',
+		},
+		{
+			fieldname: "field_value",
+			fieldtype: "Data",
+			label: __("New Value"),
+			depends_on: action_type
+				? action_type === "Set Field"
+				: 'eval:doc.action_type=="Set Field"',
+			mandatory_depends_on: action_type
+				? action_type === "Set Field"
+				: 'eval:doc.action_type=="Set Field"',
+		},
+		{
+			fieldname: "scheduled_for",
+			fieldtype: "Datetime",
+			label: __("Run At"),
+			reqd: 1,
+		}
+	);
+
+	const dialog = new frappe.ui.Dialog({
+		title: action_type ? __("Schedule {0}", [action_type]) : __("Schedule Action"),
+		fields,
+		primary_action_label: __("Schedule"),
+		primary_action: (values) => {
+			frappe.call({
+				method: "scheduled_actions.api.create_scheduled_action",
+				args: {
+					reference_doctype: frm.doctype,
+					reference_name: frm.docname,
+					action_type: action_type || values.action_type,
+					scheduled_for: values.scheduled_for,
+					field_name: values.field_name,
+					field_value: values.field_value,
+				},
+				freeze: true,
+				callback: (r) => {
+					if (r.message) {
+						frappe.show_alert({
+							message: __("Scheduled as {0}", [r.message]),
+							indicator: "green",
+						});
+						dialog.hide();
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+	});
+
+	if (can_set_field) {
+		frappe.call({
+			method: "scheduled_actions.api.get_settable_fields",
+			args: { doctype: frm.doctype },
+			callback: (r) => {
+				const options = (r.message || []).map((df) => ({
+					label: `${df.label} (${df.fieldname})`,
+					value: df.fieldname,
+				}));
+				dialog.set_df_property("field_name", "options", options);
+			},
+		});
+	}
+
+	dialog.show();
+};
