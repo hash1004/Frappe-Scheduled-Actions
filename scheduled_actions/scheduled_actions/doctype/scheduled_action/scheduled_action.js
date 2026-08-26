@@ -26,6 +26,24 @@ frappe.ui.form.on("Scheduled Action", {
 			});
 		}
 
+		if (frm.doc.status === "Failed" && !frm.is_new()) {
+			// Single-attempt execution is deliberate (see tasks.py) - this
+			// is a manual re-queue, not automatic retry-with-backoff. Goes
+			// through api.retry_action (a real Document.save(), not a raw
+			// field update) so the ownership lock and permission re-checks
+			// still apply to who's allowed to do this.
+			frm.add_custom_button(__("Retry"), () => {
+				frappe.confirm(__("Re-queue this action to run again now?"), () => {
+					frappe.call({
+						method: "scheduled_actions.api.retry_action",
+						args: { name: frm.docname },
+						freeze: true,
+						callback: () => frm.reload_doc(),
+					});
+				});
+			});
+		}
+
 		gate_action_type(frm);
 
 		// A saved doc only ever persists field_value (the mirrors are a

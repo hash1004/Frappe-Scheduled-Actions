@@ -20,8 +20,10 @@ from scheduled_actions.api import (
 	get_settable_fields,
 	reference_doctype_query,
 	resolve_dynamic_link_doctype,
+	retry_action,
 )
-from scheduled_actions.tests.fixtures import TEST_DOCTYPE, make_test_doc, near_future_datetime
+from scheduled_actions.tasks import execute_action
+from scheduled_actions.tests.fixtures import TEST_DOCTYPE, due_datetime, make_test_doc, near_future_datetime
 from scheduled_actions.utils import BLOCKED_DOCTYPES
 
 GET_PERMITTED_FIELDS_TARGET = "scheduled_actions.api.get_permitted_fields"
@@ -116,6 +118,49 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 	def test_reference_doctype_query_finds_ordinary_doctype(self):
 		results = reference_doctype_query("DocType", TEST_DOCTYPE, "name", 0, 20, {})
 		self.assertIn(TEST_DOCTYPE, {r[0] for r in results})
+
+	def test_retry_action_requeues_a_failed_action(self):
+		target = make_test_doc()
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Submit",
+			"scheduled_for": near_future_datetime(),
+		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.set_value("Scheduled Action", doc.name, "scheduled_for", due_datetime())
+		frappe.db.commit()
+
+		# Same "target deleted before firing" shape used elsewhere to get a
+		# real Failed row without waiting on anything.
+		frappe.delete_doc(TEST_DOCTYPE, target.name, force=True, ignore_permissions=True)
+		frappe.db.commit()
+		execute_action(doc.name)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", doc.name, "status"), "Failed")
+
+		# Give it something real to point at again before retrying.
+		frappe.get_doc({"doctype": TEST_DOCTYPE, "title": target.name}).insert(ignore_permissions=True)
+
+		retry_action(doc.name)
+
+		row = frappe.db.get_value("Scheduled Action", doc.name, ["status", "error_log"], as_dict=True)
+		self.assertEqual(row.status, "Pending")
+		self.assertEqual(row.error_log, "")
+
+	def test_retry_action_rejects_a_non_failed_action(self):
+		target = make_test_doc()
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Submit",
+			"scheduled_for": near_future_datetime(),
+		})
+		doc.insert(ignore_permissions=True)  # still Pending
+
+		with self.assertRaises(frappe.ValidationError):
+			retry_action(doc.name)
 
 	def test_create_scheduled_action_end_to_end(self):
 		target = make_test_doc()

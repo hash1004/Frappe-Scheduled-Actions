@@ -12,9 +12,9 @@
 
 import frappe
 from frappe.tests import IntegrationTestCase
-from frappe.utils import now_datetime
+from frappe.utils import add_to_date, now_datetime
 
-from scheduled_actions.tasks import _claim, execute_action
+from scheduled_actions.tasks import _claim, cleanup_old_actions, execute_action
 from scheduled_actions.tests.fixtures import (
 	TEST_DOCTYPE,
 	due_datetime,
@@ -163,3 +163,60 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 			{"document_type": "Scheduled Action", "creation": [">=", before]},
 		)
 		self.assertGreaterEqual(count, 2)
+
+	def test_cleanup_deletes_old_finished_actions(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit")
+		execute_action(name)  # Executed
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
+
+		frappe.db.set_value(
+			"Scheduled Action", name, "modified", add_to_date(now_datetime(), days=-100), update_modified=False
+		)
+		frappe.db.commit()
+
+		cleanup_old_actions(retention_days=90)
+
+		self.assertFalse(frappe.db.exists("Scheduled Action", name))
+
+	def test_cleanup_keeps_recently_finished_actions(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit")
+		execute_action(name)  # Executed, modified = just now
+
+		cleanup_old_actions(retention_days=90)
+
+		self.assertTrue(frappe.db.exists("Scheduled Action", name))
+
+	def test_cleanup_never_touches_pending_or_running_regardless_of_age(self):
+		# The whole reason this isn't just frappe's generic
+		# default_log_clearing_doctypes hook: that clears by creation age
+		# alone, with no status awareness, and would happily delete a
+		# still-Pending action scheduled far in the future. This is the
+		# property that actually matters here.
+		target = make_test_doc()
+		pending_name = _schedule(target, "Submit")
+		frappe.db.set_value(
+			"Scheduled Action",
+			pending_name,
+			"modified",
+			add_to_date(now_datetime(), days=-1000),
+			update_modified=False,
+		)
+
+		running_target = make_test_doc()
+		running_name = _schedule(running_target, "Submit")
+		frappe.db.set_value("Scheduled Action", running_name, "status", "Running", update_modified=False)
+		frappe.db.set_value(
+			"Scheduled Action",
+			running_name,
+			"modified",
+			add_to_date(now_datetime(), days=-1000),
+			update_modified=False,
+		)
+		frappe.db.commit()
+
+		cleanup_old_actions(retention_days=90)
+
+		self.assertTrue(frappe.db.exists("Scheduled Action", pending_name))
+		self.assertTrue(frappe.db.exists("Scheduled Action", running_name))
