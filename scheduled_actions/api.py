@@ -119,3 +119,34 @@ def get_field_current_value(doctype, name, fieldname):
 		frappe.throw(_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError)
 
 	return frappe.db.get_value(doctype, name, fieldname)
+
+
+@frappe.whitelist()
+def resolve_dynamic_link_doctype(doctype, name, fieldname):
+	"""For a Dynamic Link target field, the doctype it actually links to
+	isn't fixed on the field itself - df.options is instead the *fieldname*
+	on the same document that holds it (e.g. Scheduled Action's own
+	reference_name is a Dynamic Link whose options is "reference_doctype").
+	Resolves that so the client can point the Value control's Link options
+	at the right doctype. Only needs read access to the controlling field
+	(unlike get_field_current_value, this isn't reading the field that's
+	about to be scheduled for a write - just consulting a different field
+	for context), plus read access to the document itself."""
+	ensure_doctype_allowed(doctype)
+
+	meta = frappe.get_meta(doctype)
+	df = meta.get_field(fieldname)
+	if not df or df.fieldtype != "Dynamic Link":
+		frappe.throw(_("{0} is not a Dynamic Link field on {1}").format(fieldname, doctype))
+
+	controlling_fieldname = df.options
+	permitted = set(get_permitted_fields(doctype, permission_type="read"))
+	if controlling_fieldname not in permitted:
+		frappe.throw(
+			_("You do not have permission to read {0}").format(controlling_fieldname), frappe.PermissionError
+		)
+
+	if not frappe.has_permission(doctype, "read", doc=name):
+		frappe.throw(_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError)
+
+	return frappe.db.get_value(doctype, name, controlling_fieldname)

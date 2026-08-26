@@ -34,7 +34,7 @@ frappe.ui.form.on("Scheduled Action", {
 		// value into it, every refresh. Chained after the options call
 		// (not fired in parallel) since it needs that call's field metadata
 		// to know which mirror is even the right one.
-		build_field_name_options(frm, () => apply_current_field(frm, { prefill_from: frm.doc.field_value }));
+		build_field_name_options(frm, () => apply_current_field(frm, frm.doc.field_value));
 	},
 
 	reference_doctype(frm) {
@@ -50,22 +50,10 @@ frappe.ui.form.on("Scheduled Action", {
 
 	field_name(frm) {
 		if (!frm.doc.reference_doctype || !frm.doc.field_name) {
-			apply_current_field(frm, { prefill_from: null });
+			apply_current_field(frm, null);
 			return;
 		}
-
-		// Picking a field defaults the new value to what's already on the
-		// target document - the common case is nudging one field, not
-		// starting from a blank slate.
-		frappe.call({
-			method: "scheduled_actions.api.get_field_current_value",
-			args: {
-				doctype: frm.doc.reference_doctype,
-				name: frm.doc.reference_name,
-				fieldname: frm.doc.field_name,
-			},
-			callback: (r) => apply_current_field(frm, { prefill_from: r.message }),
-		});
+		apply_current_field(frm, undefined); // fetches the current value itself
 	},
 
 	field_value_select(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "select"); },
@@ -124,11 +112,52 @@ function build_field_name_options(frm, on_done) {
 	});
 }
 
-function apply_current_field(frm, { prefill_from }) {
+// `prefill_from` explicitly given (refresh, which already has the
+// persisted field_value) -> used as-is. `undefined` (field_name just
+// changed) -> fetched fresh via get_field_current_value. A Dynamic Link
+// target field needs its actual doctype resolved first either way (see
+// resolve_dynamic_link_doctype's docstring) - both calls run in parallel
+// rather than the value-fetch waiting on the doctype-resolve for no reason.
+function apply_current_field(frm, prefill_from) {
 	const df = (frm._settable_fields_by_name || {})[frm.doc.field_name];
 
 	frm.set_df_property("field_name", "description",
 		df ? __("{0} ({1})", [df.label, df.fieldtype]) : __("Pick a Document Type first"));
 
-	scheduled_actions.value_control.apply_field_pick(frm, df || null, prefill_from);
+	if (!df) {
+		scheduled_actions.value_control.apply_field_pick(frm, null, prefill_from);
+		return;
+	}
+
+	const resolve_link_doctype =
+		df.fieldtype === "Dynamic Link"
+			? frappe
+					.call({
+						method: "scheduled_actions.api.resolve_dynamic_link_doctype",
+						args: {
+							doctype: frm.doc.reference_doctype,
+							name: frm.doc.reference_name,
+							fieldname: df.fieldname,
+						},
+					})
+					.then((r) => r.message)
+			: Promise.resolve(undefined);
+
+	const fetch_value =
+		prefill_from !== undefined
+			? Promise.resolve(prefill_from)
+			: frappe
+					.call({
+						method: "scheduled_actions.api.get_field_current_value",
+						args: {
+							doctype: frm.doc.reference_doctype,
+							name: frm.doc.reference_name,
+							fieldname: df.fieldname,
+						},
+					})
+					.then((r) => r.message);
+
+	Promise.all([resolve_link_doctype, fetch_value]).then(([link_doctype, value]) => {
+		scheduled_actions.value_control.apply_field_pick(frm, df, value, link_doctype);
+	});
 }

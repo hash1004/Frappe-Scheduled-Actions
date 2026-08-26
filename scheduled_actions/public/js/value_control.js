@@ -8,11 +8,14 @@
 frappe.provide("scheduled_actions.value_control");
 
 // Target fieldtypes that get a dedicated, natively-typed mirror field;
-// anything else (Data, Text, Dynamic Link, ...) falls back to the plain
-// text one - the "text" category.
+// anything else (Data, Text, ...) falls back to the plain text one - the
+// "text" category. Dynamic Link shares the "link" category/mirror with
+// plain Link - same control, the only difference is *how* its target
+// doctype is known (see apply_field_pick's link_doctype_override param).
 scheduled_actions.value_control.CATEGORY_BY_FIELDTYPE = {
 	Select: "select",
 	Link: "link",
+	"Dynamic Link": "link",
 	Check: "check",
 	Date: "date",
 	Datetime: "datetime",
@@ -152,14 +155,19 @@ function current_value_of(host, fieldname) {
 // fieldname/label/fieldtype/options). `current_value` (optional) prefills
 // the matching mirror - the picker's whole point is to default to "what's
 // there now" so the common case is a small edit, not a blank form.
-scheduled_actions.value_control.apply_field_pick = function (host, df, current_value) {
+// `link_doctype_override` is for Dynamic Link fields only: unlike a plain
+// Link, df.options isn't the target doctype itself but the *fieldname*
+// that holds it - the caller resolves that (see
+// api.resolve_dynamic_link_doctype) and passes the actual doctype name in.
+scheduled_actions.value_control.apply_field_pick = function (host, df, current_value, link_doctype_override) {
 	const category = df ? scheduled_actions.value_control.category_for_fieldtype(df.fieldtype) : "text";
 
 	if (category === "select") {
 		host.set_df_property("field_value_select", "options", df.options || "");
 	}
 	if (category === "link") {
-		host.set_df_property("field_value_link", "options", df.options || "[Select]");
+		const link_doctype = df.fieldtype === "Dynamic Link" ? link_doctype_override : df.options;
+		host.set_df_property("field_value_link", "options", link_doctype || "[Select]");
 	}
 
 	const switching = current_value_of(host, "target_fieldtype") !== category;

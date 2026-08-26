@@ -2,14 +2,16 @@
  "actions": [],
  "allow_rename": 0,
  "creation": "2026-08-26 00:00:00.000000",
- "description": "Test-only fixture doctype for the scheduled_actions test suite. Not part of the app's actual feature set - deliberately minimal and self-contained (Data/Select/Check/Float, submittable) so tests don't depend on the shape of a core doctype like ToDo or Event, which this app doesn't control and could change under a future Frappe version.",
+ "description": "Test-only fixture doctype for the scheduled_actions test suite. Not part of the app's actual feature set - deliberately minimal and self-contained (Data/Select/Check/Float/Link/Dynamic Link, submittable) so tests don't depend on the shape of a core doctype like ToDo or Event, which this app doesn't control and could change under a future Frappe version.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "title",
   "category",
   "is_flagged",
-  "amount"
+  "amount",
+  "linked_doctype",
+  "dynamic_ref"
  ],
  "fields": [
   {
@@ -33,6 +35,18 @@
    "fieldname": "amount",
    "fieldtype": "Float",
    "label": "Amount"
+  },
+  {
+   "fieldname": "linked_doctype",
+   "fieldtype": "Link",
+   "label": "Linked Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "dynamic_ref",
+   "fieldtype": "Dynamic Link",
+   "label": "Dynamic Ref",
+   "options": "linked_doctype"
   }
  ],
  "index_web_pages_for_search": 1,
