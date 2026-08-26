@@ -1,8 +1,21 @@
 // Adds Scheduled Actions to every form: menu items in the ... dropdown, a
 // "Schedule..." link in the sidebar next to Assign/Attach/Share, and a
 // read-only lock (with banner) when a Scheduled Action is already Pending
-// against the open document.
+// (or Running - see get_pending_action) against the open document.
 frappe.provide("scheduled_actions");
+
+// Fetched once and cached (not per-form-refresh) - this doesn't change
+// within a session, and the "is this doctype even eligible" check needs to
+// run on every form-refresh across the whole desk.
+scheduled_actions._blocked_doctypes_promise = null;
+scheduled_actions.get_blocked_doctypes = function () {
+	if (!scheduled_actions._blocked_doctypes_promise) {
+		scheduled_actions._blocked_doctypes_promise = frappe.call({
+			method: "scheduled_actions.api.get_blocked_doctypes",
+		}).then((r) => r.message || []);
+	}
+	return scheduled_actions._blocked_doctypes_promise;
+};
 
 // Frappe fires this document event from inside Form.render_form(), right
 // after refresh_header() has rebuilt the page toolbar/menu and before
@@ -39,17 +52,21 @@ if (window.cur_frm && cur_frm.doc) {
 scheduled_actions.setup_form = function (frm) {
 	if (!frm || !frm.doc || frm.is_new() || frm.doctype === "Scheduled Action") return;
 
-	frappe.call({
-		method: "scheduled_actions.api.get_pending_action",
-		args: { reference_doctype: frm.doctype, reference_name: frm.docname },
-		callback: (r) => {
-			if (r.message) {
-				scheduled_actions.lock_form(frm, r.message);
-			} else {
-				scheduled_actions.add_menu_items(frm);
-				scheduled_actions.add_sidebar_action(frm);
-			}
-		},
+	scheduled_actions.get_blocked_doctypes().then((blocked) => {
+		if (blocked.includes(frm.doctype)) return; // no Schedule UI at all on these
+
+		frappe.call({
+			method: "scheduled_actions.api.get_pending_action",
+			args: { reference_doctype: frm.doctype, reference_name: frm.docname },
+			callback: (r) => {
+				if (r.message) {
+					scheduled_actions.lock_form(frm, r.message);
+				} else {
+					scheduled_actions.add_menu_items(frm);
+					scheduled_actions.add_sidebar_action(frm);
+				}
+			},
+		});
 	});
 };
 
@@ -108,52 +125,58 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 	const can_cancel_now = frm.meta.is_submittable && frm.doc.docstatus === 1 && frm.perm[0].submit;
 	const can_set_field = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
 
+	const vc = scheduled_actions.value_control;
+	const set_field_visible = 'eval:doc.action_type=="Set Field"';
+
 	const fields = [];
 
-	if (!action_type) {
-		const options = [];
-		if (can_submit_now) options.push({ label: __("Submit"), value: "Submit" });
-		if (can_cancel_now) options.push({ label: __("Cancel"), value: "Cancel" });
-		if (can_set_field) options.push({ label: __("Set Field"), value: "Set Field" });
+	// Always a real field, even when action_type is fixed by which menu
+	// item opened this dialog (hidden + read-only then) - value_control.js's
+	// mirror fields depends_on reads doc.action_type, so it needs to exist
+	// and hold the right value on every path, not just the "picker shown"
+	// one.
+	const action_type_options = [];
+	if (can_submit_now) action_type_options.push({ label: __("Submit"), value: "Submit" });
+	if (can_cancel_now) action_type_options.push({ label: __("Cancel"), value: "Cancel" });
+	if (can_set_field) action_type_options.push({ label: __("Set Field"), value: "Set Field" });
 
-		fields.push({
-			fieldname: "action_type",
-			fieldtype: "Select",
-			label: __("Action"),
-			reqd: 1,
-			options,
-			default: options[0] && options[0].value,
-		});
-	}
+	fields.push({
+		fieldname: "action_type",
+		fieldtype: "Select",
+		label: __("Action"),
+		reqd: 1,
+		hidden: !!action_type,
+		read_only: !!action_type,
+		options: action_type ? [action_type] : action_type_options,
+		default: action_type || (action_type_options[0] && action_type_options[0].value),
+	});
+
+	fields.push({
+		fieldname: "field_name",
+		fieldtype: "Select",
+		label: __("Field"),
+		options: [],
+		depends_on: set_field_visible,
+		mandatory_depends_on: set_field_visible,
+	});
+
+	// Mirrored, natively-typed Value controls (Select/Link/Check/Date/
+	// Datetime/Number/plain-text) - see value_control.js.
+	fields.push(...vc.mirror_field_defs());
 
 	fields.push(
-		{
-			fieldname: "field_name",
-			fieldtype: "Select",
-			label: __("Field"),
-			options: [],
-			depends_on: action_type
-				? action_type === "Set Field"
-				: 'eval:doc.action_type=="Set Field"',
-			mandatory_depends_on: action_type
-				? action_type === "Set Field"
-				: 'eval:doc.action_type=="Set Field"',
-		},
 		{
 			fieldname: "field_value",
 			fieldtype: "Data",
 			label: __("New Value"),
-			depends_on: action_type
-				? action_type === "Set Field"
-				: 'eval:doc.action_type=="Set Field"',
-			mandatory_depends_on: action_type
-				? action_type === "Set Field"
-				: 'eval:doc.action_type=="Set Field"',
+			depends_on: 'eval:doc.action_type=="Set Field" && doc.target_fieldtype=="text"',
+			mandatory_depends_on: 'eval:doc.action_type=="Set Field" && doc.target_fieldtype=="text"',
 		},
 		{
 			fieldname: "scheduled_for",
 			fieldtype: "Datetime",
 			label: __("Run At"),
+			description: __("Times are interpreted in the site's system timezone."),
 			reqd: 1,
 		}
 	);
@@ -168,7 +191,7 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 				args: {
 					reference_doctype: frm.doctype,
 					reference_name: frm.docname,
-					action_type: action_type || values.action_type,
+					action_type: values.action_type,
 					scheduled_for: values.scheduled_for,
 					field_name: values.field_name,
 					field_value: values.field_value,
@@ -188,12 +211,43 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 		},
 	});
 
+	// fieldname -> its {fieldname, label, fieldtype, options} from
+	// get_settable_fields(), fetched once below and reused on every pick so
+	// choosing a field doesn't need a fresh round trip each time.
+	let settable_fields_by_name = {};
+
+	dialog.fields_dict.field_name.df.onchange = () => {
+		const df = settable_fields_by_name[dialog.get_value("field_name")];
+		if (!df) {
+			vc.apply_field_pick(dialog, null, null);
+			return;
+		}
+
+		frappe.call({
+			method: "scheduled_actions.api.get_field_current_value",
+			args: { doctype: frm.doctype, name: frm.docname, fieldname: df.fieldname },
+			callback: (r) => vc.apply_field_pick(dialog, df, r.message),
+		});
+	};
+
+	Object.keys(vc.MIRROR_FIELD_BY_CATEGORY).forEach((category) => {
+		const fieldname = vc.MIRROR_FIELD_BY_CATEGORY[category];
+		if (dialog.fields_dict[fieldname]) {
+			dialog.fields_dict[fieldname].df.onchange = () =>
+				vc.sync_mirror_to_field_value(dialog, category);
+		}
+	});
+
 	if (can_set_field) {
 		frappe.call({
 			method: "scheduled_actions.api.get_settable_fields",
 			args: { doctype: frm.doctype },
 			callback: (r) => {
-				const options = (r.message || []).map((df) => ({
+				const fields_list = r.message || [];
+				settable_fields_by_name = {};
+				fields_list.forEach((df) => (settable_fields_by_name[df.fieldname] = df));
+
+				const options = fields_list.map((df) => ({
 					label: `${df.label} (${df.fieldname})`,
 					value: df.fieldname,
 				}));

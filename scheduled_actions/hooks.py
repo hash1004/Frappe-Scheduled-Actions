@@ -26,7 +26,12 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
-app_include_js = "/assets/scheduled_actions/js/schedule_menu.js"
+# value_control.js must load before schedule_menu.js - the latter calls into
+# the scheduled_actions.value_control namespace the former defines.
+app_include_js = [
+	"/assets/scheduled_actions/js/value_control.js",
+	"/assets/scheduled_actions/js/schedule_menu.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"

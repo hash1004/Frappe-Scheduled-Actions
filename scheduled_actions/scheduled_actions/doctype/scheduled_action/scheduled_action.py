@@ -3,8 +3,11 @@
 
 import frappe
 from frappe import _
+from frappe.model import get_permitted_fields
 from frappe.model.document import Document
 from frappe.utils import get_datetime, now_datetime
+
+from scheduled_actions.utils import UNSETTABLE_FIELDTYPES, ensure_doctype_allowed
 
 
 class ScheduledAction(Document):
@@ -24,6 +27,8 @@ class ScheduledAction(Document):
 				frappe.throw(_("Only {0} can modify this Scheduled Action").format(self.scheduled_by))
 
 	def validate_reference(self):
+		ensure_doctype_allowed(self.reference_doctype)
+
 		if not frappe.db.exists(self.reference_doctype, self.reference_name):
 			frappe.throw(_("{0} {1} does not exist").format(self.reference_doctype, self.reference_name))
 
@@ -58,8 +63,22 @@ class ScheduledAction(Document):
 			if not meta.has_field(self.field_name):
 				frappe.throw(_("{0} has no field {1}").format(self.reference_doctype, self.field_name))
 			df = meta.get_field(self.field_name)
-			if df.fieldtype in ("Table", "Table MultiSelect", "Attach", "Attach Image"):
+			if df.fieldtype in UNSETTABLE_FIELDTYPES:
 				frappe.throw(_("Cannot schedule a value for field type {0}").format(df.fieldtype))
+
+			# Doctype-level write permission (checked in validate_reference) says
+			# nothing about field-level (permlevel) restrictions - a field the
+			# scheduling user can't otherwise see or write must not be settable
+			# here either. Re-checked at execution time too, since this can
+			# drift just like doctype-level permission can.
+			permitted = get_permitted_fields(self.reference_doctype, permission_type="write")
+			if self.field_name not in permitted:
+				frappe.throw(
+					_("You do not have permission to set {0} on {1}").format(
+						self.field_name, self.reference_doctype
+					),
+					frappe.PermissionError,
+				)
 
 	def validate_schedule(self):
 		if self.is_new() and get_datetime(self.scheduled_for) <= now_datetime():

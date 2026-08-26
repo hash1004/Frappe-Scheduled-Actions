@@ -1,39 +1,10 @@
 // Copyright (c) 2026, Abdul Hannan and contributors
 // For license information, please see license.txt
 
-// Target fieldtypes that don't have a dedicated "Value" mirror field fall
-// back to the plain text one ("text" category).
-const TARGET_FIELDTYPE_CATEGORY = {
-	Select: "select",
-	Link: "link",
-	Check: "check",
-	Date: "date",
-	Datetime: "datetime",
-	Int: "number",
-	Float: "number",
-	Currency: "number",
-	Percent: "number",
-};
-
-// One real, natively-typed control per category, kept in sync onto the
-// single `field_value` (Data) column that's actually persisted and read
-// by the executor - see scheduled_actions/tasks.py.
-const VALUE_MIRROR_FIELDS = {
-	select: "field_value_select",
-	link: "field_value_link",
-	check: "field_value_check",
-	date: "field_value_date",
-	datetime: "field_value_datetime",
-	number: "field_value_number",
-};
-
-// Fieldtypes a Scheduled Action can't meaningfully target - mirrors the
-// server-side check in ScheduledAction.validate_action().
-const UNSETTABLE_FIELDTYPES = [
-	"Section Break", "Column Break", "Tab Break", "HTML", "Table",
-	"Table MultiSelect", "Attach", "Attach Image", "Button", "Fold",
-	"Heading", "Image",
-];
+// field_name's picker and the field_value_* mirror controls (Select/Link/
+// Check/Date/Datetime/Number/plain-text) are shared with the "Schedule..."
+// Dialog in public/js/schedule_menu.js - see public/js/value_control.js,
+// loaded globally via app_include_js so it's already available here.
 
 frappe.ui.form.on("Scheduled Action", {
 	refresh(frm) {
@@ -46,8 +17,14 @@ frappe.ui.form.on("Scheduled Action", {
 		}
 
 		gate_action_type(frm);
-		build_field_name_options(frm);
-		sync_value_field(frm, { load_existing_value: true });
+
+		// A saved doc only ever persists field_value (the mirrors are a
+		// pure UI convenience, not stored) - re-derive which mirror should
+		// be showing from the current field_name and push the persisted
+		// value into it, every refresh. Chained after the options call
+		// (not fired in parallel) since it needs that call's field metadata
+		// to know which mirror is even the right one.
+		build_field_name_options(frm, () => apply_current_field(frm, { prefill_from: frm.doc.field_value }));
 	},
 
 	reference_doctype(frm) {
@@ -62,15 +39,31 @@ frappe.ui.form.on("Scheduled Action", {
 	},
 
 	field_name(frm) {
-		sync_value_field(frm, { load_existing_value: false });
+		if (!frm.doc.reference_doctype || !frm.doc.field_name) {
+			apply_current_field(frm, { prefill_from: null });
+			return;
+		}
+
+		// Picking a field defaults the new value to what's already on the
+		// target document - the common case is nudging one field, not
+		// starting from a blank slate.
+		frappe.call({
+			method: "scheduled_actions.api.get_field_current_value",
+			args: {
+				doctype: frm.doc.reference_doctype,
+				name: frm.doc.reference_name,
+				fieldname: frm.doc.field_name,
+			},
+			callback: (r) => apply_current_field(frm, { prefill_from: r.message }),
+		});
 	},
 
-	field_value_select(frm) { mirror_to_field_value(frm, "select"); },
-	field_value_link(frm) { mirror_to_field_value(frm, "link"); },
-	field_value_check(frm) { mirror_to_field_value(frm, "check"); },
-	field_value_date(frm) { mirror_to_field_value(frm, "date"); },
-	field_value_datetime(frm) { mirror_to_field_value(frm, "datetime"); },
-	field_value_number(frm) { mirror_to_field_value(frm, "number"); },
+	field_value_select(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "select"); },
+	field_value_link(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "link"); },
+	field_value_check(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "check"); },
+	field_value_date(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "date"); },
+	field_value_datetime(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "datetime"); },
+	field_value_number(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "number"); },
 });
 
 // A doctype that can't be submitted has no meaningful Submit/Cancel action,
@@ -93,85 +86,39 @@ function gate_action_type(frm) {
 	});
 }
 
-// field_name becomes a real picker over the target doctype's own fields,
-// instead of free text the user has to get exactly right.
-function build_field_name_options(frm) {
+// field_name is a Select populated from the *server-filtered* field list -
+// scheduled_actions.api.get_settable_fields() already excludes layout/table/
+// attachment fields and anything the current user lacks permlevel-write
+// access to, so this can't offer a field that would only be rejected on
+// save. df's (fieldname/label/fieldtype/options) are cached on the form
+// object for field_name's change handler to reuse without another call.
+function build_field_name_options(frm, on_done) {
 	if (!frm.doc.reference_doctype) {
 		frm.set_df_property("field_name", "options", []);
+		on_done && on_done();
 		return;
 	}
 
-	frappe.model.with_doctype(frm.doc.reference_doctype, () => {
-		const meta = frappe.get_meta(frm.doc.reference_doctype);
-		const options = meta.fields
-			.filter((df) => df.fieldname && !UNSETTABLE_FIELDTYPES.includes(df.fieldtype))
-			.map((df) => df.fieldname)
-			.sort();
+	frappe.call({
+		method: "scheduled_actions.api.get_settable_fields",
+		args: { doctype: frm.doc.reference_doctype },
+		callback: (r) => {
+			const fields_list = r.message || [];
+			frm._settable_fields_by_name = {};
+			fields_list.forEach((df) => (frm._settable_fields_by_name[df.fieldname] = df));
 
-		frm.set_df_property("field_name", "options", [""].concat(options));
-		frm.refresh_field("field_name");
+			frm.set_df_property("field_name", "options", [""].concat(fields_list.map((df) => df.fieldname)));
+			frm.refresh_field("field_name");
+			on_done && on_done();
+		},
 	});
 }
 
-// Pulls the selected field's metadata and points the matching Value mirror
-// (Select/Link/Check/Date/Datetime/Number) at its constraints - options list,
-// linked doctype, etc - so the input can only produce a valid value.
-function sync_value_field(frm, { load_existing_value }) {
-	if (!frm.doc.reference_doctype || !frm.doc.field_name) {
-		set_active_category(frm, "text", { load_existing_value });
-		return;
-	}
+function apply_current_field(frm, { prefill_from }) {
+	const df = (frm._settable_fields_by_name || {})[frm.doc.field_name];
 
-	frappe.model.with_doctype(frm.doc.reference_doctype, () => {
-		const meta = frappe.get_meta(frm.doc.reference_doctype);
-		const df = meta.get_field(frm.doc.field_name);
+	frm.set_df_property("field_name", "description",
+		df ? __("{0} ({1})", [df.label, df.fieldtype]) : __("Pick a Document Type first"));
 
-		frm.set_df_property("field_name", "description",
-			df ? __("{0} ({1})", [df.label, df.fieldtype]) : __("Pick a Document Type first"));
-
-		const category = df ? (TARGET_FIELDTYPE_CATEGORY[df.fieldtype] || "text") : "text";
-
-		if (category === "select") {
-			frm.set_df_property("field_value_select", "options", df.options || "");
-		}
-		if (category === "link") {
-			frm.set_df_property("field_value_link", "options", df.options || "");
-		}
-
-		set_active_category(frm, category, { load_existing_value });
-	});
-}
-
-function set_active_category(frm, category, { load_existing_value }) {
-	const switching_target = frm.doc.target_fieldtype !== category;
-	frm.set_value("target_fieldtype", category);
-
-	if (load_existing_value) {
-		// Form just loaded/refreshed: the persisted value only lives in
-		// field_value, so push it into the mirror that's now showing.
-		const mirror = VALUE_MIRROR_FIELDS[category];
-		if (mirror && frm.doc.field_value !== "" && frm.doc.field_value !== null && frm.doc.field_value !== undefined) {
-			frm.set_value(mirror, cast_for_mirror(category, frm.doc.field_value));
-		}
-	} else if (switching_target) {
-		// The target field changed underneath the user - stale values in
-		// any mirror (including the one they can no longer see) would be
-		// misleading, so clear them all.
-		Object.values(VALUE_MIRROR_FIELDS).forEach((f) => frm.set_value(f, ""));
-		frm.set_value("field_value", "");
-	}
-}
-
-function cast_for_mirror(category, raw) {
-	if (category === "check") return cint(raw);
-	if (category === "number") return flt(raw);
-	return raw;
-}
-
-// Whichever mirror is currently active is the user's actual input; keep the
-// real, persisted field_value in lockstep with it.
-function mirror_to_field_value(frm, category) {
-	if (frm.doc.target_fieldtype !== category) return;
-	const value = frm.doc[VALUE_MIRROR_FIELDS[category]];
-	frm.set_value("field_value", value === 0 || value === false ? String(value) : (value || ""));
+	scheduled_actions.value_control.apply_field_pick(frm, df || null, prefill_from);
 }
