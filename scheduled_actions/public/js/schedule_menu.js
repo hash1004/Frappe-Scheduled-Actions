@@ -107,15 +107,40 @@ scheduled_actions.add_menu_items = function (frm) {
 
 scheduled_actions.add_sidebar_action = function (frm) {
 	if (!frm.sidebar || !frm.sidebar.sidebar) return; // form sidebar disabled
-	if (frm.sidebar.sidebar.find(".schedule-action-link").length) return; // already added this render
+	if (frm.sidebar.sidebar.find(".form-schedule").length) return; // already added this render
 
 	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
 	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
 	if (!can_write && !can_submit) return;
 
-	frm.sidebar
-		.add_user_action(__("Schedule..."), () => scheduled_actions.open_dialog(frm))
-		.addClass("schedule-action-link");
+	// Deliberately not frm.sidebar.add_user_action() - that renders into a
+	// separate "Links" section as a plain hyperlink, which is what looked
+	// out of place. This instead matches the exact markup every other
+	// sidebar action uses (Assign/Attachments/Tags/Share - see
+	// form_sidebar.html: a .sidebar-section > .form-sidebar-items >
+	// .form-sidebar-label with an icon), and sits in that same list of
+	// actions, right before Share, instead of in its own section below it.
+	const section = $(`
+		<div class="sidebar-section form-schedule">
+			<div>
+				<span class="form-sidebar-items">
+					<a class="form-sidebar-label">
+						${frappe.utils.icon("clock")}
+						<span class="ellipsis">${__("Schedule")}</span>
+					</a>
+				</span>
+			</div>
+		</div>
+	`);
+
+	const share_section = frm.sidebar.sidebar.find(".form-shared");
+	if (share_section.length) {
+		section.insertBefore(share_section);
+	} else {
+		section.appendTo(frm.sidebar.sidebar);
+	}
+
+	section.find(".form-sidebar-label").on("click", () => scheduled_actions.open_dialog(frm));
 };
 
 // action_type omitted (sidebar entry point) -> dialog includes a picker.
