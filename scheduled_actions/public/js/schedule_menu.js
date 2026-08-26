@@ -255,10 +255,26 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 			return;
 		}
 
-		frappe.call({
-			method: "scheduled_actions.api.get_field_current_value",
-			args: { doctype: frm.doctype, name: frm.docname, fieldname: df.fieldname },
-			callback: (r) => vc.apply_field_pick(dialog, df, r.message),
+		// A Dynamic Link field's actual target doctype has to be resolved
+		// (df.options is the *fieldname* holding it, not the doctype
+		// itself) before the Link mirror's options can be set - every
+		// other category can go straight to fetching the current value.
+		const resolve_link_doctype =
+			df.fieldtype === "Dynamic Link"
+				? frappe
+						.call({
+							method: "scheduled_actions.api.resolve_dynamic_link_doctype",
+							args: { doctype: frm.doctype, name: frm.docname, fieldname: df.fieldname },
+						})
+						.then((r) => r.message)
+				: Promise.resolve(undefined);
+
+		resolve_link_doctype.then((link_doctype) => {
+			frappe.call({
+				method: "scheduled_actions.api.get_field_current_value",
+				args: { doctype: frm.doctype, name: frm.docname, fieldname: df.fieldname },
+				callback: (r) => vc.apply_field_pick(dialog, df, r.message, link_doctype),
+			});
 		});
 	};
 

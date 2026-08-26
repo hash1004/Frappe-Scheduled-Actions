@@ -19,6 +19,7 @@ from scheduled_actions.api import (
 	get_field_current_value,
 	get_settable_fields,
 	reference_doctype_query,
+	resolve_dynamic_link_doctype,
 )
 from scheduled_actions.tests.fixtures import TEST_DOCTYPE, make_test_doc, near_future_datetime
 from scheduled_actions.utils import BLOCKED_DOCTYPES
@@ -66,6 +67,33 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 		):
 			with self.assertRaises(frappe.PermissionError):
 				get_field_current_value(TEST_DOCTYPE, target.name, "category")
+
+	def test_get_settable_fields_reports_dynamic_link_fieldtype(self):
+		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=["dynamic_ref"]):
+			fields = get_settable_fields(TEST_DOCTYPE)
+		by_name = {f["fieldname"]: f for f in fields}
+		self.assertEqual(by_name["dynamic_ref"]["fieldtype"], "Dynamic Link")
+		# options is the *fieldname* holding the target doctype, not a
+		# doctype itself - resolve_dynamic_link_doctype is what turns that
+		# into an actual doctype name.
+		self.assertEqual(by_name["dynamic_ref"]["options"], "linked_doctype")
+
+	def test_resolve_dynamic_link_doctype_returns_the_controlling_fields_value(self):
+		target = make_test_doc(linked_doctype="DocType", dynamic_ref="DocType")
+		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=["linked_doctype"]):
+			resolved = resolve_dynamic_link_doctype(TEST_DOCTYPE, target.name, "dynamic_ref")
+		self.assertEqual(resolved, "DocType")
+
+	def test_resolve_dynamic_link_doctype_rejects_non_dynamic_link_field(self):
+		target = make_test_doc()
+		with self.assertRaises(frappe.ValidationError):
+			resolve_dynamic_link_doctype(TEST_DOCTYPE, target.name, "category")
+
+	def test_resolve_dynamic_link_doctype_requires_read_on_controlling_field(self):
+		target = make_test_doc(linked_doctype="DocType")
+		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=["dynamic_ref"]):  # linked_doctype excluded
+			with self.assertRaises(frappe.PermissionError):
+				resolve_dynamic_link_doctype(TEST_DOCTYPE, target.name, "dynamic_ref")
 
 	def test_get_blocked_doctypes_matches_utils_constant(self):
 		self.assertEqual(get_blocked_doctypes(), sorted(BLOCKED_DOCTYPES))
