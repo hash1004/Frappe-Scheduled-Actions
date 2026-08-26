@@ -7,6 +7,16 @@
 // loaded globally via app_include_js so it's already available here.
 
 frappe.ui.form.on("Scheduled Action", {
+	setup(frm) {
+		// Blocked doctypes (see utils.BLOCKED_DOCTYPES) and Singles should
+		// never be offered here at all, not just rejected on save - a
+		// server-side query controller, not a client-side "not in" filter,
+		// so there's one source of truth and no cache/race to keep in sync.
+		frm.set_query("reference_doctype", () => ({
+			query: "scheduled_actions.api.reference_doctype_query",
+		}));
+	},
+
 	refresh(frm) {
 		if (frm.doc.status === "Pending" && !frm.is_new()) {
 			frm.add_custom_button(__("Cancel Action"), () => {

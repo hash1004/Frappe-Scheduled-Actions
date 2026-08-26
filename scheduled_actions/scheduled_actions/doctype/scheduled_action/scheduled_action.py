@@ -96,7 +96,7 @@ def cast_value(reference_doctype, field_name, raw_value):
 
 	if fieldtype in ("Int", "Check"):
 		return int(raw_value)
-	if fieldtype in ("Float", "Currency", "Percent"):
+	if fieldtype in ("Float", "Currency", "Percent", "Duration"):
 		return float(raw_value)
 
 	return raw_value

@@ -21,6 +21,9 @@
   "field_value_check",
   "field_value_date",
   "field_value_datetime",
+  "field_value_time",
+  "field_value_color",
+  "field_value_duration",
   "field_value_number",
   "field_value",
   "status_section",
@@ -135,6 +138,27 @@
    "fieldtype": "Datetime",
    "label": "Value",
    "mandatory_depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"datetime\""
+  },
+  {
+   "depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"time\"",
+   "fieldname": "field_value_time",
+   "fieldtype": "Time",
+   "label": "Value",
+   "mandatory_depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"time\""
+  },
+  {
+   "depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"color\"",
+   "fieldname": "field_value_color",
+   "fieldtype": "Color",
+   "label": "Value",
+   "mandatory_depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"color\""
+  },
+  {
+   "depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"duration\"",
+   "fieldname": "field_value_duration",
+   "fieldtype": "Duration",
+   "label": "Value",
+   "mandatory_depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"duration\""
   },
   {
    "depends_on": "eval:doc.action_type==\"Set Field\" && doc.target_fieldtype==\"number\"",

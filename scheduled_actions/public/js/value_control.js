@@ -16,6 +16,9 @@ scheduled_actions.value_control.CATEGORY_BY_FIELDTYPE = {
 	Check: "check",
 	Date: "date",
 	Datetime: "datetime",
+	Time: "time",
+	Color: "color",
+	Duration: "duration",
 	Int: "number",
 	Float: "number",
 	Currency: "number",
@@ -28,6 +31,9 @@ scheduled_actions.value_control.MIRROR_FIELD_BY_CATEGORY = {
 	check: "field_value_check",
 	date: "field_value_date",
 	datetime: "field_value_datetime",
+	time: "field_value_time",
+	color: "field_value_color",
+	duration: "field_value_duration",
 	number: "field_value_number",
 };
 
@@ -37,7 +43,7 @@ scheduled_actions.value_control.category_for_fieldtype = function (fieldtype) {
 
 scheduled_actions.value_control.cast_for_mirror = function (category, raw) {
 	if (category === "check") return cint(raw);
-	if (category === "number") return flt(raw);
+	if (category === "number" || category === "duration") return flt(raw);
 	return raw;
 };
 
@@ -106,6 +112,27 @@ scheduled_actions.value_control.mirror_field_defs = function () {
 			label: __("New Value"),
 			depends_on: visible_when("number"),
 			mandatory_depends_on: visible_when("number"),
+		},
+		{
+			fieldname: "field_value_time",
+			fieldtype: "Time",
+			label: __("New Value"),
+			depends_on: visible_when("time"),
+			mandatory_depends_on: visible_when("time"),
+		},
+		{
+			fieldname: "field_value_color",
+			fieldtype: "Color",
+			label: __("New Value"),
+			depends_on: visible_when("color"),
+			mandatory_depends_on: visible_when("color"),
+		},
+		{
+			fieldname: "field_value_duration",
+			fieldtype: "Duration",
+			label: __("New Value"),
+			depends_on: visible_when("duration"),
+			mandatory_depends_on: visible_when("duration"),
 		},
 	];
 };
