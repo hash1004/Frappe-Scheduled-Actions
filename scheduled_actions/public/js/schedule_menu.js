@@ -121,8 +121,13 @@ scheduled_actions.add_sidebar_action = function (frm) {
 // action_type omitted (sidebar entry point) -> dialog includes a picker.
 // action_type given (a specific menu item) -> dialog skips straight to it.
 scheduled_actions.open_dialog = function (frm, action_type) {
-	const can_submit_now = frm.meta.is_submittable && frm.doc.docstatus === 0 && frm.perm[0].submit;
-	const can_cancel_now = frm.meta.is_submittable && frm.doc.docstatus === 1 && frm.perm[0].submit;
+	// frm is already the target document's own form, so its submittability
+	// is just frm.meta - no lookup needed the way the standalone Scheduled
+	// Action form needs one (there, reference_doctype is a Link that can
+	// change; here it's fixed to frm.doctype for the dialog's whole life).
+	const submittable = !!frm.meta.is_submittable;
+	const can_submit_now = submittable && frm.doc.docstatus === 0 && frm.perm[0].submit;
+	const can_cancel_now = submittable && frm.doc.docstatus === 1 && frm.perm[0].submit;
 	const can_set_field = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
 
 	const vc = scheduled_actions.value_control;
@@ -134,7 +139,9 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 	// item opened this dialog (hidden + read-only then) - value_control.js's
 	// mirror fields depends_on reads doc.action_type, so it needs to exist
 	// and hold the right value on every path, not just the "picker shown"
-	// one.
+	// one. Also read-only whenever the doctype isn't submittable at all:
+	// Submit/Cancel would only ever fail at execution time then, so "Set
+	// Field" is the only real choice and shouldn't look pickable.
 	const action_type_options = [];
 	if (can_submit_now) action_type_options.push({ label: __("Submit"), value: "Submit" });
 	if (can_cancel_now) action_type_options.push({ label: __("Cancel"), value: "Cancel" });
@@ -146,7 +153,7 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 		label: __("Action"),
 		reqd: 1,
 		hidden: !!action_type,
-		read_only: !!action_type,
+		read_only: !!action_type || !submittable,
 		options: action_type ? [action_type] : action_type_options,
 		default: action_type || (action_type_options[0] && action_type_options[0].value),
 	});
