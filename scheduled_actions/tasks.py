@@ -3,10 +3,11 @@ from frappe.utils import now_datetime
 
 
 def run_due_actions():
-	"""Called every minute by the scheduler. Executes every Scheduled Action
-	whose time has come, each isolated in its own try/except and its own
-	permission context (the user who scheduled it) so one bad action or one
-	user's revoked access can never affect another's."""
+	"""Called every minute by the scheduler. Only looks up what's due and
+	hands each one to a background worker - this tick itself must stay fast,
+	since a slow action (a heavy save() with its own hooks, or simply a
+	backlog of many due actions) executing inline here would delay every
+	other job sharing this scheduler tick."""
 
 	due = frappe.get_all(
 		"Scheduled Action",
@@ -15,19 +16,25 @@ def run_due_actions():
 	)
 
 	for name in due:
-		execute_action(name)
+		frappe.enqueue(
+			"scheduled_actions.tasks.execute_action",
+			queue="short",
+			job_id=f"scheduled_action::{name}",
+			deduplicate=True,
+			name=name,
+		)
 
 
 def execute_action(name):
+	if not _claim(name):
+		# Already picked up by another worker (or no longer Pending for some
+		# other reason) - nothing to do. See _claim()'s docstring for why
+		# this is safe against two workers racing on the same action.
+		return
+
 	original_user = frappe.session.user
 	try:
 		action = frappe.get_doc("Scheduled Action", name)
-
-		# Re-check everything at execution time - state may have moved
-		# since this was scheduled (doc deleted, already submitted,
-		# permission revoked, etc).
-		if action.status != "Pending":
-			return
 
 		if not frappe.db.exists(action.reference_doctype, action.reference_name):
 			_fail(action, f"{action.reference_doctype} {action.reference_name} no longer exists")
@@ -44,9 +51,9 @@ def execute_action(name):
 			return
 
 		target = frappe.get_doc(action.reference_doctype, action.reference_name)
-		# This action's own row is still Pending at this point (only flips to
-		# Executed below), which would otherwise trip the pending-action lock
-		# on the very save/submit/cancel it's meant to perform.
+		# This action's own row is Running at this point (see _claim()),
+		# which counts as locked - it would otherwise trip the pending-action
+		# lock on the very save/submit/cancel it's meant to perform.
 		target.flags.ignore_scheduled_action_lock = True
 
 		if action.action_type == "Submit":
@@ -62,7 +69,16 @@ def execute_action(name):
 			target.cancel()
 
 		elif action.action_type == "Set Field":
+			from frappe.model import get_permitted_fields
+
 			from scheduled_actions.scheduled_actions.doctype.scheduled_action.scheduled_action import cast_value
+
+			# Field-level (permlevel) permission can drift between scheduling
+			# and execution too, same as the doctype-level check above.
+			permitted = get_permitted_fields(action.reference_doctype, permission_type="write")
+			if action.field_name not in permitted:
+				_fail(action, f"{action.scheduled_by} no longer has permission to set {action.field_name}")
+				return
 
 			value = cast_value(action.reference_doctype, action.field_name, action.field_value)
 			target.set(action.field_name, value)
@@ -83,6 +99,27 @@ def execute_action(name):
 	finally:
 		frappe.set_user(original_user)
 		frappe.db.commit()
+
+
+def _claim(name):
+	"""Atomically moves a due action from Pending to Running and reports
+	whether *this* call was the one that made the move. `for_update` takes a
+	row lock, so if two workers reach this at the same moment for the same
+	action (an overlapping scheduler tick, or a job re-delivered by the queue
+	after a crash) only one of them observes status still "Pending" - the
+	other blocks on the lock, then reads back "Running" and returns False.
+	This is what actually prevents double-execution; the enqueue-time
+	deduplicate=True in run_due_actions() is only a cheap first line, since
+	it stops re-queueing but not a job that's already been dequeued."""
+
+	status = frappe.db.get_value("Scheduled Action", name, "status", for_update=True)
+	if status != "Pending":
+		frappe.db.commit()  # release the row lock
+		return False
+
+	frappe.db.set_value("Scheduled Action", name, "status", "Running", update_modified=False)
+	frappe.db.commit()
+	return True
 
 
 def _fail(action, message):
