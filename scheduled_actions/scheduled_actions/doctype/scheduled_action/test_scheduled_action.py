@@ -256,3 +256,19 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 	def test_cast_value_empty_value_passthrough(self):
 		self.assertEqual(cast_value(TEST_DOCTYPE, "amount", ""), "")
 		self.assertIsNone(cast_value(TEST_DOCTYPE, "amount", None))
+
+	def test_scheduled_for_keeps_frappes_automatic_timezone_conversion(self):
+		# frappe.ui.form.ControlDatetime converts a Datetime field's value
+		# to/from the viewing user's own timezone automatically - and shows
+		# it in the field's description - for every Datetime field, unless
+		# hide_timezone is set on it (a client-side-only df key, not a real
+		# DocField schema property, hence the dict-style .get() rather than
+		# attribute access). scheduled_for (and the field_value_datetime
+		# mirror) rely entirely on that framework behavior rather than any
+		# custom logic of ours; this just guards against a future edit
+		# accidentally opting either of them out of it.
+		meta = frappe.get_meta("Scheduled Action")
+		for fieldname in ("scheduled_for", "field_value_datetime"):
+			df = meta.get_field(fieldname)
+			self.assertEqual(df.fieldtype, "Datetime")
+			self.assertFalse(df.get("hide_timezone"))

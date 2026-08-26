@@ -81,6 +81,14 @@ class ScheduledAction(Document):
 				)
 
 	def validate_schedule(self):
+		# now_datetime() is system-timezone, not this user's - that's fine
+		# to compare against directly: frappe.ui.form.ControlDatetime
+		# already converts whatever the user typed/picked in *their* own
+		# timezone into system time before it ever reaches self.scheduled_for
+		# (and converts back for display), so by the time this runs, both
+		# sides of the comparison are already in the same timezone. Same
+		# reasoning applies to run_due_actions()'s scheduled_for <=
+		# now_datetime() filter.
 		if self.is_new() and get_datetime(self.scheduled_for) <= now_datetime():
 			frappe.throw(_("Scheduled For must be a future date and time"))
 

@@ -208,7 +208,11 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 			fieldname: "scheduled_for",
 			fieldtype: "Datetime",
 			label: __("Run At"),
-			description: __("Times are interpreted in the site's system timezone."),
+			// No manual timezone note needed - frappe.ui.form.ControlDatetime
+			// already appends the viewing user's own timezone under every
+			// Datetime field automatically (see set_description() in
+			// frappe/public/js/frappe/form/controls/datetime.js), and
+			// converts what's typed/shown to/from it transparently.
 			reqd: 1,
 		}
 	);

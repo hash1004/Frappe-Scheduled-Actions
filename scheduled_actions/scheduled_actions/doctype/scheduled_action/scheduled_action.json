@@ -59,7 +59,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Times are interpreted in the site's system timezone.",
    "fieldname": "scheduled_for",
    "fieldtype": "Datetime",
    "in_list_view": 1,
@@ -209,7 +208,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-26 01:00:00.000000",
+ "modified": "2026-08-26 02:00:00.000000",
  "modified_by": "Administrator",
  "module": "Scheduled Actions",
  "name": "Scheduled Action",
