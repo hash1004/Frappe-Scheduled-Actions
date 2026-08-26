@@ -1,5 +1,10 @@
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import add_to_date, now_datetime
+
+# How long a *finished* Scheduled Action (Executed/Failed/Cancelled) is kept
+# before cleanup_old_actions() removes it. Pending/Running rows are never
+# touched regardless of age - see that function's own docstring for why.
+RETENTION_DAYS = 90
 
 
 def run_due_actions():
@@ -127,6 +132,33 @@ def _fail(action, message):
 	action.db_set("executed_on", now_datetime())
 	action.db_set("error_log", message[:9000])
 	_notify(action, success=False)
+
+
+def cleanup_old_actions(retention_days=RETENTION_DAYS):
+	"""Deletes Scheduled Action rows that *finished* (Executed, Failed, or
+	Cancelled) more than `retention_days` ago. Runs daily via
+	scheduler_events.
+
+	Deliberately not using Frappe's own default_log_clearing_doctypes hook
+	for this: that clears purely by `creation` age, with no status
+	awareness at all - it would delete a still-Pending action scheduled far
+	in the future exactly as readily as a long-finished one, since it has
+	no idea one hasn't happened yet. That's not just imprecise, it's
+	actively dangerous for a doctype whose whole point is "this hasn't run
+	yet" rows living for a while.
+
+	Bulk delete (frappe.db.delete), not a per-row frappe.delete_doc() loop
+	- this is routine log cleanup, not something that needs versioning,
+	comments, or link-checks preserved for every row."""
+	cutoff = add_to_date(now_datetime(), days=-retention_days)
+	frappe.db.delete(
+		"Scheduled Action",
+		filters={
+			"status": ["in", ("Executed", "Failed", "Cancelled")],
+			"modified": ["<", cutoff],
+		},
+	)
+	frappe.db.commit()
 
 
 def _notify(action, success):

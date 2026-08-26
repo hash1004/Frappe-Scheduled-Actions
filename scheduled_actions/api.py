@@ -42,6 +42,27 @@ def create_scheduled_action(
 
 
 @frappe.whitelist()
+def retry_action(name, scheduled_for=None):
+	"""Re-queues a Failed action: back to Pending with a fresh
+	scheduled_for (now by default, so it's picked up on the very next
+	scheduler tick) and the previous error_log cleared. Goes through the
+	normal Document.save() lifecycle rather than a raw field update, so
+	ScheduledAction.validate() - the ownership lock, the doctype/field
+	permission re-checks, all of it - applies exactly as it would to any
+	other edit of this document; nothing here bypasses that."""
+	doc = frappe.get_doc("Scheduled Action", name)
+	if doc.status != "Failed":
+		frappe.throw(_("Only a Failed action can be retried"))
+
+	doc.scheduled_for = scheduled_for or frappe.utils.now_datetime()
+	doc.status = "Pending"
+	doc.executed_on = None
+	doc.error_log = ""
+	doc.save()
+	return doc.name
+
+
+@frappe.whitelist()
 def get_blocked_doctypes():
 	"""The doctypes a Scheduled Action can never target - used by the client
 	to decide whether to show the "Schedule..." menu/sidebar entry at all on

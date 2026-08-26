@@ -151,7 +151,10 @@ scheduler_events = {
 		"* * * * *": [
 			"scheduled_actions.tasks.run_due_actions"
 		]
-	}
+	},
+	"daily": [
+		"scheduled_actions.tasks.cleanup_old_actions"
+	]
 }
 
 # Testing
