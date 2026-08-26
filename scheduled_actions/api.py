@@ -44,10 +44,35 @@ def create_scheduled_action(
 @frappe.whitelist()
 def get_blocked_doctypes():
 	"""The doctypes a Scheduled Action can never target - used by the client
-	to filter the Document Type picker up front. Not a security boundary by
-	itself: ScheduledAction.validate_reference() enforces the same list
-	server-side regardless of what the client sends."""
+	to decide whether to show the "Schedule..." menu/sidebar entry at all on
+	a given doctype's own form. Not a security boundary by itself:
+	ScheduledAction.validate_reference() enforces the same list server-side
+	regardless of what the client sends."""
 	return sorted(BLOCKED_DOCTYPES)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def reference_doctype_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Custom query for reference_doctype's Link field on the standalone
+	Scheduled Action form - excludes Single doctypes and BLOCKED_DOCTYPES so
+	a disallowed doctype is never offered in the picker in the first place,
+	rather than typed/selected and only then rejected on save. Same standard
+	shape frappe.core.doctype.user_permission's query controllers use
+	(list-of-lists via as_list); ensure_doctype_allowed() still enforces
+	this authoritatively server-side, this is a UX filter on top."""
+	return frappe.get_all(
+		"DocType",
+		filters=[
+			["issingle", "=", 0],
+			["name", "not in", list(BLOCKED_DOCTYPES)],
+			["name", "like", f"%{txt}%"],
+		],
+		fields=["name"],
+		start=start,
+		page_length=page_len,
+		as_list=True,
+	)
 
 
 @frappe.whitelist()
