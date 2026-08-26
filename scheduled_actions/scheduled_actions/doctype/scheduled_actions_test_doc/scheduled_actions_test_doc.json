@@ -1,0 +1,78 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-26 00:00:00.000000",
+ "description": "Test-only fixture doctype for the scheduled_actions test suite. Not part of the app's actual feature set - deliberately minimal and self-contained (Data/Select/Check/Float, submittable) so tests don't depend on the shape of a core doctype like ToDo or Event, which this app doesn't control and could change under a future Frappe version.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "category",
+  "is_flagged",
+  "amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "Alpha\nBeta\nGamma",
+   "default": "Alpha"
+  },
+  {
+   "fieldname": "is_flagged",
+   "fieldtype": "Check",
+   "label": "Is Flagged"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Float",
+   "label": "Amount"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Scheduled Actions",
+ "name": "Scheduled Actions Test Doc",
+ "naming_rule": "By fieldname",
+ "autoname": "field:title",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "read": 1,
+   "role": "Scheduled Actions Test Writer",
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
