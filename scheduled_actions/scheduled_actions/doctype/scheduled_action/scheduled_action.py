@@ -59,6 +59,12 @@ class ScheduledAction(Document):
 		if self.action_type == "Set Field":
 			if not self.field_name:
 				frappe.throw(_("Field Name is required for a Set Field action"))
+			# A "0"/"0.0" from a Check or number mirror is a real value; only
+			# a genuinely empty field_value is rejected. Guards every path
+			# into this doctype, including the raw create_scheduled_action
+			# API and a mirror-sync that never fired (see scheduled_action.js).
+			if self.field_value is None or self.field_value == "":
+				frappe.throw(_("A value is required for a Set Field action"))
 			meta = frappe.get_meta(self.reference_doctype)
 			if not meta.has_field(self.field_name):
 				frappe.throw(_("{0} has no field {1}").format(self.reference_doctype, self.field_name))

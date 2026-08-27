@@ -142,11 +142,17 @@ scheduled_actions.value_control.mirror_field_defs = function () {
 
 // `host` is anything with the FieldGroup surface Form and Dialog both share
 // (get_field/set_value/set_df_property - Dialog extends FieldGroup, which
-// Layout provides the same three for). Deliberately read current values via
-// get_field(...).get_value() rather than host.doc: Form keeps a live `.doc`,
-// but a bare Dialog doesn't, so get_field() is the one lookup that actually
-// works on both.
+// Layout provides the same three for).
+//
+// Read from host.doc when it exists (a Form): it's the authoritative model,
+// and - crucially - a permanently-hidden control like target_fieldtype has
+// no input for get_field().get_value() to read, so on a Form that comes
+// back `undefined` and the sync guard below never matches (Color/Time/
+// Duration silently didn't persist for exactly this reason). A bare Dialog
+// has no `.doc` at all, so there get_field().get_value() is the only
+// option - and its mirror controls are visible when relevant, so it works.
 function current_value_of(host, fieldname) {
+	if (host.doc && fieldname in host.doc) return host.doc[fieldname];
 	const field = host.get_field(fieldname);
 	return field ? field.get_value() : undefined;
 }

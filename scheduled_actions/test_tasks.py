@@ -72,6 +72,21 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Beta")
 
+	def test_execute_fails_gracefully_when_value_was_never_captured(self):
+		# A row that predates validate()'s empty-value check (a mirror-sync
+		# that never fired) - must Fail, not silently blank the field.
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")
+		frappe.db.set_value("Scheduled Action", name, "field_value", "")
+		frappe.db.commit()
+
+		execute_action(name)
+
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_log"], as_dict=True)
+		self.assertEqual(row.status, "Failed")
+		self.assertIn("No value was captured", row.error_log)
+		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Alpha")
+
 	def test_execute_submit_success(self):
 		target = make_test_doc()
 		name = _schedule(target, "Submit")

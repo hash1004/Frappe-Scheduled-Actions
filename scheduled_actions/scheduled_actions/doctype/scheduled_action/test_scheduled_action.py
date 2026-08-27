@@ -155,6 +155,39 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
+	def test_empty_field_value_rejected_for_set_field(self):
+		# A Set Field action with no value would just blank the target field
+		# on execution - reject it at creation (this is also the failure mode
+		# when a mirror-sync doesn't fire, see scheduled_action.js).
+		target = make_test_doc()
+		for empty in ("", None):
+			doc = frappe.get_doc({
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Set Field",
+				"field_name": "category",
+				"field_value": empty,
+				"scheduled_for": near_future_datetime(),
+			})
+			with self.assertRaises(frappe.ValidationError, msg=f"field_value={empty!r}"):
+				doc.insert(ignore_permissions=True)
+
+	def test_falsy_but_real_field_value_allowed_for_set_field(self):
+		# "0" from a Check/number mirror is a real value, not "empty".
+		target = make_test_doc()
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Set Field",
+			"field_name": "is_flagged",
+			"field_value": "0",
+			"scheduled_for": near_future_datetime(),
+		})
+		doc.insert(ignore_permissions=True)  # must not raise
+		self.assertEqual(doc.field_value, "0")
+
 	def test_permlevel_write_check_blocks_field_not_in_permitted_list(self):
 		# Doctype-level write already passes (Administrator/System Manager),
 		# so this isolates the field-level (permlevel) check on its own -
