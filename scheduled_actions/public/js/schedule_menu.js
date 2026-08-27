@@ -1,7 +1,7 @@
-// Adds Scheduled Actions to every form: menu items in the ... dropdown, a
-// "Schedule..." link in the sidebar next to Assign/Attach/Share, and a
-// read-only lock (with banner) when a Scheduled Action is already Pending
-// (or Running - see get_pending_action) against the open document.
+// Adds Scheduled Actions to every form: a "Schedule..." action in the
+// sidebar next to Assign/Attach/Share, and a read-only lock (with banner)
+// when a Scheduled Action is already Pending (or Running - see
+// get_pending_action) against the open document.
 frappe.provide("scheduled_actions");
 
 // Fetched once and cached (not per-form-refresh) - this doesn't change
@@ -18,13 +18,13 @@ scheduled_actions.get_blocked_doctypes = function () {
 };
 
 // Frappe fires this document event from inside Form.render_form(), right
-// after refresh_header() has rebuilt the page toolbar/menu and before
+// after the page header/toolbar and sidebar have been rebuilt and before
 // doctype-specific `refresh` client scripts run - the correct, public hook
 // for exactly this. (Monkey-patching Form.prototype.refresh doesn't work
 // here: its internals run through frappe.run_serially(), which is
 // asynchronous, so code appended after calling the original refresh() races
-// ahead of refresh_header() and either finds frm.page not ready yet or gets
-// its menu item wiped when refresh_header() rebuilds the toolbar.)
+// ahead of that rebuild and either finds frm.sidebar not ready yet or gets
+// its own sidebar entry wiped when the sidebar is re-rendered.)
 $(document).on("form-refresh", (event, frm) => {
 	try {
 		scheduled_actions.setup_form(frm);
@@ -62,7 +62,6 @@ scheduled_actions.setup_form = function (frm) {
 				if (r.message) {
 					scheduled_actions.lock_form(frm, r.message);
 				} else {
-					scheduled_actions.add_menu_items(frm);
 					scheduled_actions.add_sidebar_action(frm);
 				}
 			},
@@ -80,29 +79,6 @@ scheduled_actions.lock_form = function (frm, pending) {
 		]),
 		"orange"
 	);
-};
-
-scheduled_actions.add_menu_items = function (frm) {
-	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
-	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
-
-	if (frm.meta.is_submittable && frm.doc.docstatus === 0 && can_submit) {
-		frm.page.add_menu_item(__("Schedule Submit..."), () =>
-			scheduled_actions.open_dialog(frm, "Submit")
-		);
-	}
-
-	if (frm.meta.is_submittable && frm.doc.docstatus === 1 && can_submit) {
-		frm.page.add_menu_item(__("Schedule Cancel..."), () =>
-			scheduled_actions.open_dialog(frm, "Cancel")
-		);
-	}
-
-	if (can_write) {
-		frm.page.add_menu_item(__("Schedule Field Change..."), () =>
-			scheduled_actions.open_dialog(frm, "Set Field")
-		);
-	}
 };
 
 scheduled_actions.add_sidebar_action = function (frm) {
@@ -143,9 +119,9 @@ scheduled_actions.add_sidebar_action = function (frm) {
 	section.find(".form-sidebar-label").on("click", () => scheduled_actions.open_dialog(frm));
 };
 
-// action_type omitted (sidebar entry point) -> dialog includes a picker.
-// action_type given (a specific menu item) -> dialog skips straight to it.
-scheduled_actions.open_dialog = function (frm, action_type) {
+// One entry point (the sidebar action) -> the dialog always shows the
+// Action picker, scoped to whatever this document/user actually allows.
+scheduled_actions.open_dialog = function (frm) {
 	// frm is already the target document's own form, so its submittability
 	// is just frm.meta - no lookup needed the way the standalone Scheduled
 	// Action form needs one (there, reference_doctype is a Link that can
@@ -160,13 +136,12 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 
 	const fields = [];
 
-	// Always a real field, even when action_type is fixed by which menu
-	// item opened this dialog (hidden + read-only then) - value_control.js's
-	// mirror fields depends_on reads doc.action_type, so it needs to exist
-	// and hold the right value on every path, not just the "picker shown"
-	// one. Also read-only whenever the doctype isn't submittable at all:
-	// Submit/Cancel would only ever fail at execution time then, so "Set
-	// Field" is the only real choice and shouldn't look pickable.
+	// Scoped to what this document/user can actually do right now: a
+	// non-submittable doctype offers only "Set Field" (and the control is
+	// read-only, since there's nothing to pick), a draft offers Submit, a
+	// submitted doc offers Cancel. value_control.js's mirror fields read
+	// doc.action_type in their depends_on, so this field must always exist
+	// and hold a valid value even when there's only one option.
 	const action_type_options = [];
 	if (can_submit_now) action_type_options.push({ label: __("Submit"), value: "Submit" });
 	if (can_cancel_now) action_type_options.push({ label: __("Cancel"), value: "Cancel" });
@@ -177,10 +152,9 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 		fieldtype: "Select",
 		label: __("Action"),
 		reqd: 1,
-		hidden: !!action_type,
-		read_only: !!action_type || !submittable,
-		options: action_type ? [action_type] : action_type_options,
-		default: action_type || (action_type_options[0] && action_type_options[0].value),
+		read_only: action_type_options.length <= 1,
+		options: action_type_options,
+		default: action_type_options[0] && action_type_options[0].value,
 	});
 
 	fields.push({
@@ -218,7 +192,7 @@ scheduled_actions.open_dialog = function (frm, action_type) {
 	);
 
 	const dialog = new frappe.ui.Dialog({
-		title: action_type ? __("Schedule {0}", [action_type]) : __("Schedule Action"),
+		title: __("Schedule Action"),
 		fields,
 		primary_action_label: __("Schedule"),
 		primary_action: (values) => {

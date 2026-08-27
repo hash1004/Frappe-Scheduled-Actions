@@ -12,8 +12,8 @@ that everything's still valid right before it runs.
 
 #### Highlights
 
-- **Works on any doctype** - open the "Schedule..." menu/sidebar action on
-  whichever document's form you're already on, no per-doctype setup. (A
+- **Works on any doctype** - open the "Schedule..." action in the form
+  sidebar on whichever document you're already on, no per-doctype setup. (A
   small, sensible denylist keeps this off security-critical doctypes like
   User, Role, and System Settings, and off Single doctypes, which don't
   fit the model.)
@@ -41,8 +41,8 @@ that everything's still valid right before it runs.
 
 #### How it works
 
-1. Open any document and click **Schedule...** (in the sidebar, or under
-   the `...` menu) and pick **Submit**, **Cancel**, or **Set Field**.
+1. Open any document, click **Schedule...** in the form sidebar, and pick
+   **Submit**, **Cancel**, or **Set Field**.
 2. For a field change, pick the field - the value control adapts to that
    field's type automatically.
 3. Pick a date and time, and confirm.
