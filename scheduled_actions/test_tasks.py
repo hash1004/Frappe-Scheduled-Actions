@@ -107,9 +107,14 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "docstatus"), 2)
 
 	def test_execute_fails_gracefully_when_target_deleted(self):
+		# ignore_on_trash so the doc_events['*']['on_trash'] hook doesn't
+		# clear the action - this test is the executor's own safety net for
+		# a target that vanished some other way (raw SQL, a migration).
 		target = make_test_doc()
 		name = _schedule(target, "Submit")
-		frappe.delete_doc(TEST_DOCTYPE, target.name, force=True, ignore_permissions=True)
+		frappe.delete_doc(
+			TEST_DOCTYPE, target.name, force=True, ignore_permissions=True, ignore_on_trash=True
+		)
 		frappe.db.commit()
 
 		execute_action(name)  # must not raise
@@ -166,10 +171,13 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 
 		# Same "target deleted before firing" shape as
 		# test_execute_fails_gracefully_when_target_deleted, just reused
-		# here to get a Failed row to check the notification for.
+		# here to get a Failed row to check the notification for
+		# (ignore_on_trash, same reason as there).
 		failed_target = make_test_doc()
 		fail_name = _schedule(failed_target, "Submit")
-		frappe.delete_doc(TEST_DOCTYPE, failed_target.name, force=True, ignore_permissions=True)
+		frappe.delete_doc(
+			TEST_DOCTYPE, failed_target.name, force=True, ignore_permissions=True, ignore_on_trash=True
+		)
 		frappe.db.commit()
 		execute_action(fail_name)
 

@@ -188,6 +188,23 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		doc.insert(ignore_permissions=True)  # must not raise
 		self.assertEqual(doc.field_value, "0")
 
+	def test_hidden_or_read_only_field_rejected_for_set_field(self):
+		# You can't see/verify a hidden field or edit a read-only one on the
+		# form, so scheduling a change to it makes no sense.
+		target = make_test_doc()
+		for fieldname in ("internal_flag", "computed_score"):
+			doc = frappe.get_doc({
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Set Field",
+				"field_name": fieldname,
+				"field_value": "1",
+				"scheduled_for": near_future_datetime(),
+			})
+			with self.assertRaises(frappe.ValidationError, msg=fieldname):
+				doc.insert(ignore_permissions=True)
+
 	def test_permlevel_write_check_blocks_field_not_in_permitted_list(self):
 		# Doctype-level write already passes (Administrator/System Manager),
 		# so this isolates the field-level (permlevel) check on its own -

@@ -7,6 +7,17 @@
  * the add (+) button and the list of pending actions below the label.
  */
 
+/* The label opens the schedule dialog while nothing is pending; once an
+ * action exists it's just a header (no click handler - see
+ * schedule_menu.js), so drop the affordance. */
+.form-schedule .schedule-label {
+	cursor: pointer;
+}
+
+.form-schedule.has-pending .schedule-label {
+	cursor: default;
+}
+
 /* The "+" button - Frappe's form_sidebar.scss styles .add-assignment-btn,
  * .add-attachment-btn, .share-doc-btn ... by explicit class name, so a new
  * section's button gets none of it. Replicate that same rule here. */

@@ -7,8 +7,9 @@ code required.
 "Cancel this quote if it's not accepted by Friday." "Flip this task to
 Closed next Monday morning." "Submit this leave application the moment it
 becomes effective." Say the word, and Scheduled Actions handles the rest:
-it fires at the right time, as the user who scheduled it, and re-checks
-that everything's still valid right before it runs.
+it fires shortly after the scheduled time (see **Timing** below), as the
+user who scheduled it, and re-checks that everything's still valid right
+before it runs.
 
 #### Highlights
 
@@ -31,9 +32,9 @@ that everything's still valid right before it runs.
 - **Never fires twice** - an atomic claim guards against overlapping
   scheduler ticks or a retried background job executing the same action
   more than once.
-- **Doesn't block the scheduler** - due actions are handed off to a
-  background worker, not executed inline on the once-a-minute scheduler
-  tick.
+- **Doesn't block the scheduler** - each scheduler pass only looks up
+  what's due and hands it to a background worker; the action itself runs
+  off the scheduler's critical path.
 - **Manual retry** on a failed action, right from its own form.
 - **Cleans up after itself** - finished actions (Executed/Failed/
   Cancelled) older than 90 days are cleared automatically; anything still
@@ -48,12 +49,30 @@ that everything's still valid right before it runs.
 2. For a field change, pick the field - the value control adapts to that
    field's type automatically.
 3. Pick a date and time, and confirm.
-4. At the scheduled time, the action runs as you (not as Administrator),
-   and you get a notification either way.
+4. On the first scheduler pass at or after that time, the action runs as
+   you (not as Administrator), and you get a notification either way.
 
 Every scheduled action is also its own document (**Scheduled Action**),
 listed and manageable like any other record - cancel a pending one, retry
 a failed one, or just see what's coming up.
+
+#### Timing
+
+`scheduled_for` is a "not before" time, not an alarm clock. Actions run on
+the next scheduler pass at or after it - so the lag is however often the
+Frappe scheduler ticks, which defaults to **every 4 minutes**. To tighten
+that up, set a shorter tick in `common_site_config.json`:
+
+```json
+{ "scheduler_tick_interval": 60 }
+```
+
+That brings it to about a minute. (This is the same mechanism behind
+Frappe's own Reminders and time-based Notifications, which poll every 15
+and 5 minutes respectively - sub-minute precision isn't something the
+Frappe scheduler offers.) If you schedule a lot of actions on a busy
+bench, consider giving them a dedicated worker queue so they don't wait
+behind other background jobs.
 
 ### Installation
 

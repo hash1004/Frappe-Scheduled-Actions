@@ -99,10 +99,11 @@ def reference_doctype_query(doctype, txt, searchfield, start, page_len, filters)
 @frappe.whitelist()
 def get_settable_fields(doctype):
 	"""Fields on `doctype` that are reasonable - and permitted - to schedule
-	a value change for: skips layout/table/attachment fields, and is scoped
-	to fields the current user has permlevel-write access to (mirrors the
-	server-side check in ScheduledAction.validate_action(), so the picker
-	never offers a field that would just be rejected on save)."""
+	a value change for: skips layout/table/attachment fields, read-only and
+	hidden fields, and is scoped to fields the current user has
+	permlevel-write access to (mirrors the server-side check in
+	ScheduledAction.validate_action(), so the picker never offers a field
+	that would just be rejected on save)."""
 	ensure_doctype_allowed(doctype)
 
 	meta = frappe.get_meta(doctype)
@@ -110,7 +111,7 @@ def get_settable_fields(doctype):
 
 	out = []
 	for df in meta.fields:
-		if df.fieldtype in UNSETTABLE_FIELDTYPES or df.read_only:
+		if df.fieldtype in UNSETTABLE_FIELDTYPES or df.read_only or df.hidden:
 			continue
 		if df.fieldname not in permitted:
 			continue

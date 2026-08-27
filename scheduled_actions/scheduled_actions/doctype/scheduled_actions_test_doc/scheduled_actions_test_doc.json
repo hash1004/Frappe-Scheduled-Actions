@@ -11,7 +11,9 @@
   "is_flagged",
   "amount",
   "linked_doctype",
-  "dynamic_ref"
+  "dynamic_ref",
+  "internal_flag",
+  "computed_score"
  ],
  "fields": [
   {
@@ -47,12 +49,24 @@
    "fieldtype": "Dynamic Link",
    "label": "Dynamic Ref",
    "options": "linked_doctype"
+  },
+  {
+   "fieldname": "internal_flag",
+   "fieldtype": "Check",
+   "label": "Internal Flag",
+   "hidden": 1
+  },
+  {
+   "fieldname": "computed_score",
+   "fieldtype": "Float",
+   "label": "Computed Score",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-26 00:00:00.000000",
+ "modified": "2026-08-27 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Scheduled Actions",
  "name": "Scheduled Actions Test Doc",

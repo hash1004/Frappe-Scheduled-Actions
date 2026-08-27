@@ -71,6 +71,14 @@ class ScheduledAction(Document):
 			df = meta.get_field(self.field_name)
 			if df.fieldtype in UNSETTABLE_FIELDTYPES:
 				frappe.throw(_("Cannot schedule a value for field type {0}").format(df.fieldtype))
+			# Don't schedule a change to something the user can't see or
+			# edit on the form - read-only fields are code-managed, hidden
+			# ones can't be verified. get_settable_fields() filters both
+			# from the picker; this is the enforcement behind it.
+			if df.read_only or df.hidden:
+				frappe.throw(
+					_("{0} is read-only or hidden - it can't be scheduled").format(df.label or self.field_name)
+				)
 
 			# Doctype-level write permission (checked in validate_reference) says
 			# nothing about field-level (permlevel) restrictions - a field the
