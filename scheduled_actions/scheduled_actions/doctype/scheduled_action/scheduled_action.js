@@ -20,6 +20,14 @@ const scheduled_action_handlers = {
 	},
 
 	refresh(frm) {
+		// Once it's run it's a record - nothing left to edit. (Retry stays
+		// available for Failed via the custom button below; it goes through
+		// api.retry_action, not a form save.) validate_not_finished()
+		// enforces the same server-side.
+		if (!frm.is_new() && ["Executed", "Failed", "Cancelled"].includes(frm.doc.status)) {
+			frm.disable_form();
+		}
+
 		if (frm.doc.status === "Pending" && !frm.is_new()) {
 			frm.add_custom_button(__("Cancel Action"), () => {
 				frappe.confirm(__("Cancel this scheduled action?"), () => {

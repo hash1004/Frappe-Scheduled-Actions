@@ -15,6 +15,7 @@ class ScheduledAction(Document):
 		self.validate_reference()
 		self.validate_action()
 		self.validate_schedule()
+		self.validate_not_finished()
 
 		if not self.scheduled_by:
 			self.scheduled_by = frappe.session.user
@@ -25,6 +26,22 @@ class ScheduledAction(Document):
 		if not self.is_new() and self.scheduled_by != frappe.session.user:
 			if "System Manager" not in frappe.get_roles():
 				frappe.throw(_("Only {0} can modify this Scheduled Action").format(self.scheduled_by))
+
+	def validate_not_finished(self):
+		"""Once an action has run there's nothing to edit - it's a record.
+		The one exception is retrying a Failed one (Failed -> Pending, via
+		api.retry_action); Executed and Cancelled are frozen. The executor
+		itself uses db_set(), which doesn't run validate, so this only ever
+		gates a human editing the form."""
+		if self.is_new():
+			return
+		# The committed status, i.e. before this edit (get_doc_before_save()
+		# isn't populated yet this early in the save lifecycle).
+		was = frappe.db.get_value("Scheduled Action", self.name, "status")
+		if was in ("Executed", "Cancelled"):
+			frappe.throw(_("This scheduled action already {0} and can't be edited.").format(was.lower()))
+		if was == "Failed" and self.status != "Pending":
+			frappe.throw(_("A failed scheduled action can only be retried."))
 
 	def validate_reference(self):
 		ensure_doctype_allowed(self.reference_doctype)

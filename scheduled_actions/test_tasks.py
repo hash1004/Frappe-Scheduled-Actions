@@ -14,7 +14,13 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_to_date, now_datetime
 
-from scheduled_actions.tasks import _claim, cleanup_old_actions, execute_action
+from scheduled_actions.tasks import (
+	STUCK_RUNNING_MINUTES,
+	_claim,
+	_reclaim_stuck_running,
+	cleanup_old_actions,
+	execute_action,
+)
 from scheduled_actions.tests.fixtures import (
 	TEST_DOCTYPE,
 	due_datetime,
@@ -63,6 +69,29 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 	def test_claim_fails_gracefully_for_missing_row(self):
 		self.assertFalse(_claim("SA-DOES-NOT-EXIST"))
 
+	def test_stuck_running_action_is_failed_by_the_reaper(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit")
+		old = add_to_date(now_datetime(), minutes=-(STUCK_RUNNING_MINUTES + 5))
+		frappe.db.set_value("Scheduled Action", name, "status", "Running", update_modified=False)
+		frappe.db.set_value("Scheduled Action", name, "modified", old, update_modified=False)
+		frappe.db.commit()
+
+		_reclaim_stuck_running()
+
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_log"], as_dict=True)
+		self.assertEqual(row.status, "Failed")
+		self.assertIn("did not complete", row.error_log)
+
+	def test_reaper_leaves_a_freshly_claimed_running_action_alone(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit")
+		self.assertTrue(_claim(name))  # Running, modified = now
+
+		_reclaim_stuck_running()
+
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Running")
+
 	def test_execute_set_field_success(self):
 		target = make_test_doc(category="Alpha")
 		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")
@@ -71,6 +100,25 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Beta")
+
+	def test_execute_leaves_an_automated_change_note_on_the_target(self):
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")
+
+		execute_action(name)
+
+		note = frappe.db.get_value(
+			"Comment",
+			{
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"comment_type": "Info",
+			},
+			"content",
+		)
+		self.assertTrue(note, "an Info comment should be left on the target")
+		self.assertIn("automatically", note)
+		self.assertIn(name, note)  # links to the Scheduled Action
 
 	def test_execute_fails_gracefully_when_value_was_never_captured(self):
 		# A row that predates validate()'s empty-value check (a mirror-sync
@@ -82,10 +130,43 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 
 		execute_action(name)
 
-		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_log"], as_dict=True)
+		row = frappe.db.get_value(
+			"Scheduled Action", name, ["status", "error_message", "error_log"], as_dict=True
+		)
 		self.assertEqual(row.status, "Failed")
+		# A controlled failure: the readable message lands in both fields,
+		# there's no traceback dump.
+		self.assertIn("No value was captured", row.error_message)
 		self.assertIn("No value was captured", row.error_log)
+		self.assertNotIn("Traceback", row.error_log)
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Alpha")
+
+	def test_unexpected_failure_records_a_readable_error_and_the_full_log(self):
+		from unittest.mock import patch
+
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")
+
+		CAST = "scheduled_actions.scheduled_actions.doctype.scheduled_action.scheduled_action.cast_value"
+		with patch(CAST, side_effect=frappe.ValidationError("The category is not one we recognise")):
+			execute_action(name)
+
+		row = frappe.db.get_value(
+			"Scheduled Action", name, ["status", "error_message", "error_log"], as_dict=True
+		)
+		self.assertEqual(row.status, "Failed")
+		self.assertEqual(row.error_message, "The category is not one we recognise")
+		self.assertIn("The category is not one we recognise", row.error_log)
+		self.assertIn("Traceback", row.error_log)  # the full log is kept below it
+
+		# ...and the failure notification says why, not just "it failed".
+		subject = frappe.db.get_value(
+			"Notification Log",
+			{"document_type": "Scheduled Action", "document_name": name},
+			"subject",
+			order_by="creation desc",
+		)
+		self.assertIn("not one we recognise", subject)
 
 	def test_execute_submit_success(self):
 		target = make_test_doc()
@@ -95,6 +176,37 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "docstatus"), 1)
+
+	def test_an_executed_action_is_frozen(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit")
+		execute_action(name)  # -> Executed
+
+		doc = frappe.get_doc("Scheduled Action", name)
+		doc.scheduled_for = near_future_datetime(600)
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
+	def test_a_failed_action_is_frozen_except_for_a_retry(self):
+		from scheduled_actions.api import retry_action
+
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")
+		frappe.db.set_value("Scheduled Action", name, "field_value", "")  # will fail on execute
+		frappe.db.commit()
+		execute_action(name)  # -> Failed
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Failed")
+
+		# editing it any other way is blocked
+		doc = frappe.get_doc("Scheduled Action", name)
+		doc.field_value = "Gamma"
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
+		# but retrying it (Failed -> Pending) is allowed
+		frappe.db.set_value("Scheduled Action", name, "field_value", "Beta")
+		retry_action(name)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Pending")
 
 	def test_execute_cancel_success(self):
 		target = make_test_doc()

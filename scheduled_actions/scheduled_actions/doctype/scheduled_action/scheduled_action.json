@@ -29,6 +29,7 @@
   "status_section",
   "status",
   "executed_on",
+  "error_message",
   "column_break_status",
   "error_log"
  ],
@@ -198,19 +199,28 @@
    "read_only": 1
   },
   {
+   "depends_on": "eval:doc.error_message",
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_status",
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.error_log",
+   "description": "The full technical log, including the traceback, for whoever needs it.",
    "fieldname": "error_log",
-   "fieldtype": "Small Text",
+   "fieldtype": "Code",
    "label": "Error Log",
    "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-27 12:00:00.000000",
+ "modified": "2026-08-27 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Scheduled Actions",
  "name": "Scheduled Action",

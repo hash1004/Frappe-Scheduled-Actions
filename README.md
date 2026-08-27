@@ -29,13 +29,22 @@ before it runs.
   while an action is pending; the form shows a heads-up, and actually
   changing the document cancels the pending action (notifying whoever
   scheduled it) rather than letting something unexpected fire later.
-- **Never fires twice** - an atomic claim guards against overlapping
-  scheduler ticks or a retried background job executing the same action
-  more than once.
+- **Automated changes are marked** - the target document's timeline shows
+  the change "via Scheduled Action" plus a note that it ran automatically,
+  so it never looks like someone edited it by hand.
+- **Never fires twice, and recovers from a lost worker** - an atomic claim
+  guards against overlapping scheduler ticks; an action left mid-execution
+  by a killed worker (OOM, restart, deploy) is failed and flagged for
+  retry rather than stuck forever.
 - **Doesn't block the scheduler** - each scheduler pass only looks up
   what's due and hands it to a background worker; the action itself runs
   off the scheduler's critical path.
-- **Manual retry** on a failed action, right from its own form.
+- **Failures explain themselves** - a failed action shows a
+  plain-language reason ("Document is not in Draft state"), not just a
+  traceback, and the notification says why. The full log is kept too, for
+  whoever wants it.
+- **Manual retry** on a failed action, right from its own form; once an
+  action has run, its record is read-only.
 - **Cleans up after itself** - finished actions (Executed/Failed/
   Cancelled) older than 90 days are cleared automatically; anything still
   Pending is never touched, regardless of age.

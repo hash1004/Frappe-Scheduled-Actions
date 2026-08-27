@@ -291,6 +291,24 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		finally:
 			frappe.set_user(original_user)
 
+	def test_a_cancelled_action_cannot_be_edited(self):
+		target = make_test_doc()
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Submit",
+			"scheduled_for": near_future_datetime(),
+		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.set_value("Scheduled Action", doc.name, "status", "Cancelled")  # the manual-cancel path
+		frappe.db.commit()
+
+		doc.reload()
+		doc.scheduled_for = near_future_datetime(300)
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
 	def test_cast_value_int_and_check(self):
 		self.assertEqual(cast_value(TEST_DOCTYPE, "is_flagged", "1"), 1)
 		self.assertIsInstance(cast_value(TEST_DOCTYPE, "is_flagged", "1"), int)
