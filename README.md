@@ -39,7 +39,12 @@ before it runs.
 - **Doesn't block the scheduler** - each scheduler pass only looks up
   what's due and hands it to a background worker; the action itself runs
   off the scheduler's critical path.
-- **Manual retry** on a failed action, right from its own form.
+- **Failures explain themselves** - a failed action shows a
+  plain-language reason ("Document is not in Draft state"), not just a
+  traceback, and the notification says why. The full log is kept too, for
+  whoever wants it.
+- **Manual retry** on a failed action, right from its own form; once an
+  action has run, its record is read-only.
 - **Cleans up after itself** - finished actions (Executed/Failed/
   Cancelled) older than 90 days are cleared automatically; anything still
   Pending is never touched, regardless of age.

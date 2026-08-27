@@ -45,7 +45,7 @@ def create_scheduled_action(
 def retry_action(name, scheduled_for=None):
 	"""Re-queues a Failed action: back to Pending with a fresh
 	scheduled_for (now by default, so it's picked up on the very next
-	scheduler tick) and the previous error_log cleared. Goes through the
+	scheduler tick) and the previous error cleared. Goes through the
 	normal Document.save() lifecycle rather than a raw field update, so
 	ScheduledAction.validate() - the ownership lock, the doctype/field
 	permission re-checks, all of it - applies exactly as it would to any
@@ -57,6 +57,7 @@ def retry_action(name, scheduled_for=None):
 	doc.scheduled_for = scheduled_for or frappe.utils.now_datetime()
 	doc.status = "Pending"
 	doc.executed_on = None
+	doc.error_message = ""
 	doc.error_log = ""
 	doc.save()
 	return doc.name

@@ -116,14 +116,15 @@ def execute_action(name):
 		action.db_set("status", "Executed")
 		action.db_set("executed_on", now_datetime())
 		action.db_set("error_log", "")
+		action.db_set("error_message", "")
 		_annotate_target(action, target)
 		_notify(action, success=True)
 
-	except Exception:
+	except Exception as e:
 		frappe.db.rollback()
 		try:
 			action = frappe.get_doc("Scheduled Action", name)
-			_fail(action, frappe.get_traceback())
+			_fail(action, _friendly_error(e), traceback=frappe.get_traceback())
 		except Exception:
 			frappe.log_error(title="Scheduled Action execution failed", message=frappe.get_traceback())
 	finally:
@@ -180,11 +181,25 @@ def _reclaim_stuck_running():
 		frappe.db.commit()
 
 
-def _fail(action, message):
+def _fail(action, message, traceback=None):
+	"""`message` is the human-readable "what went wrong" (shown as Error on
+	the form, and in the failure notification); `traceback`, when there is
+	one, is the full technical log (shown as Error Log). Every controlled
+	failure path passes a plain message and no traceback - only the catch-
+	all in execute_action() has one."""
+	log = message if not traceback else f"{message}\n\n{traceback}"
 	action.db_set("status", "Failed")
 	action.db_set("executed_on", now_datetime())
-	action.db_set("error_log", message[:9000])
+	action.db_set("error_message", (message or "").strip()[:1000])
+	action.db_set("error_log", (log or "").strip()[:9000])
 	_notify(action, success=False)
+
+
+def _friendly_error(exc):
+	"""The readable part of an exception - the message a frappe.throw() put
+	up, HTML stripped - for someone who isn't going to read a traceback."""
+	msg = frappe.utils.strip_html(str(exc) or "").strip()
+	return msg or exc.__class__.__name__
 
 
 def _annotate_target(action, target):
@@ -241,19 +256,21 @@ def cleanup_old_actions(retention_days=RETENTION_DAYS):
 def _notify(action, success):
 	if not action.scheduled_by:
 		return
+	subject = frappe._("Scheduled {0} on {1} {2} {3}").format(
+		action.action_type,
+		action.reference_doctype,
+		action.reference_name,
+		frappe._("succeeded") if success else frappe._("failed"),
+	)
+	# So the notification itself says *why*, not just "it failed".
+	if not success and action.get("error_message"):
+		subject = f"{subject}: {action.error_message}"
 	frappe.get_doc(
 		{
 			"doctype": "Notification Log",
 			"for_user": action.scheduled_by,
 			"type": "Alert",
-			"subject": frappe._(
-				"Scheduled {0} on {1} {2} {3}"
-			).format(
-				action.action_type,
-				action.reference_doctype,
-				action.reference_name,
-				"succeeded" if success else "failed",
-			),
+			"subject": subject[:140],
 			"document_type": "Scheduled Action",
 			"document_name": action.name,
 		}
