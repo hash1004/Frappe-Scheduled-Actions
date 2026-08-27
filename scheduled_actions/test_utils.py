@@ -1,10 +1,11 @@
 # Copyright (c) 2026, Abdul Hannan and contributors
 # See license.txt
 #
-# Covers utils.py directly: the pending-action lock (block_edit_while_
-# scheduled/get_pending_action_name - including that it covers "Running",
-# not just "Pending", and that the executor's own bypass flag works),
-# ensure_doctype_allowed, and BLOCKED_DOCTYPES' composition.
+# Covers utils.py directly: get_pending_action_name (including that it
+# covers "Running", not just "Pending"), cancel_pending_action_on_change
+# (a real edit cancels the pending action; a no-op save and the executor's
+# own bypass flag don't), ensure_doctype_allowed, and BLOCKED_DOCTYPES'
+# composition.
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -50,25 +51,55 @@ class IntegrationTestScheduledActionsUtils(IntegrationTestCase):
 			frappe.db.commit()
 			self.assertIsNone(get_pending_action_name(TEST_DOCTYPE, target.name), f"status={status}")
 
-	def test_locked_document_cannot_be_saved(self):
-		target = make_test_doc()
-		_schedule(target)
+	def test_real_edit_cancels_the_pending_action(self):
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target)
 
 		target.reload()
-		target.title = "attempted edit while locked"
-		with self.assertRaises(frappe.ValidationError):
-			target.save(ignore_permissions=True)
+		target.category = "Beta"
+		target.save(ignore_permissions=True)  # not blocked
 
-	def test_lock_bypass_flag_allows_the_executor_through(self):
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_log"], as_dict=True)
+		self.assertEqual(row.status, "Cancelled")
+		self.assertIn("was changed", row.error_log)
+
+		# ...and a note is left on the document itself.
+		self.assertTrue(
+			frappe.db.exists(
+				"Comment",
+				{"reference_doctype": TEST_DOCTYPE, "reference_name": target.name, "comment_type": "Info"},
+			)
+		)
+
+	def test_noop_save_leaves_the_pending_action_alone(self):
 		target = make_test_doc()
-		_schedule(target)
+		name = _schedule(target)
 
 		target.reload()
-		target.title = "edit via the executor's own bypass"
+		target.save(ignore_permissions=True)  # nothing changed
+
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Pending")
+
+	def test_bypass_flag_leaves_the_pending_action_alone(self):
+		target = make_test_doc(category="Alpha")
+		name = _schedule(target)
+
+		target.reload()
+		target.category = "Gamma"
 		target.flags.ignore_scheduled_action_lock = True
-		target.save(ignore_permissions=True)  # must not raise
+		target.save(ignore_permissions=True)
 
-		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "title"), target.title)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Pending")
+		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Gamma")
+
+	def test_manual_submit_cancels_the_pending_action(self):
+		target = make_test_doc()
+		name = _schedule(target)  # scheduled Submit, but the user submits first
+
+		target.reload()
+		target.submit()
+
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Cancelled")
 
 	def test_ensure_doctype_allowed_raises_for_blocked(self):
 		with self.assertRaises(frappe.PermissionError):

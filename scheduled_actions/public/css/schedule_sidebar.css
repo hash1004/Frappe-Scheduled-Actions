@@ -1,0 +1,65 @@
+/* Styling for the "Schedule" section injected into every form sidebar by
+ * public/js/schedule_menu.js. The section markup deliberately mirrors
+ * Frappe's own .form-assignments / .form-shared sections (see
+ * frappe/public/js/frappe/form/templates/form_sidebar.html), so most of
+ * the layout comes for free from form_sidebar.scss - this file only adds
+ * what those built-in selectors don't cover for a third-party section:
+ * the add (+) button and the list of pending actions below the label.
+ */
+
+/* The "+" button - Frappe's form_sidebar.scss styles .add-assignment-btn,
+ * .add-attachment-btn, .share-doc-btn ... by explicit class name, so a new
+ * section's button gets none of it. Replicate that same rule here. */
+.form-schedule .add-schedule-btn {
+	max-width: 100%;
+	display: block;
+	width: unset;
+	height: unset;
+	margin-right: 0;
+	padding: var(--padding-xs) !important;
+	border-radius: var(--border-radius-full);
+}
+
+.form-schedule .add-schedule-btn:hover {
+	background-color: var(--subtle-fg);
+}
+
+.form-schedule .add-schedule-btn:focus {
+	box-shadow: none;
+}
+
+/* Pending-action rows, matching the size/hover of the sidebar's
+ * assignment / share rows (.dialog-assignment-row). */
+.form-schedule .scheduled-actions {
+	margin-top: 8px;
+}
+
+.form-schedule .scheduled-action-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 6px;
+	margin-left: -8px;
+	border-radius: var(--border-radius-md);
+	color: var(--text-light);
+	font-size: var(--text-sm);
+}
+
+.form-schedule .scheduled-action-row:hover {
+	background-color: var(--subtle-fg);
+	color: var(--text-color);
+	text-decoration: none;
+}
+
+.form-schedule .scheduled-action-row .scheduled-action-type {
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.form-schedule .scheduled-action-row .scheduled-action-field {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-muted);
+}

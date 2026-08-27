@@ -17,6 +17,7 @@ from scheduled_actions.api import (
 	create_scheduled_action,
 	get_blocked_doctypes,
 	get_field_current_value,
+	get_pending_action,
 	get_settable_fields,
 	reference_doctype_query,
 	resolve_dynamic_link_doctype,
@@ -173,3 +174,20 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 		doc = frappe.get_doc("Scheduled Action", name)
 		self.assertEqual(doc.status, "Pending")
 		self.assertEqual(doc.scheduled_by, frappe.session.user)
+
+	def test_get_pending_action_returns_the_row_or_none(self):
+		target = make_test_doc()
+		self.assertIsNone(get_pending_action(TEST_DOCTYPE, target.name))
+
+		name = create_scheduled_action(
+			reference_doctype=TEST_DOCTYPE,
+			reference_name=target.name,
+			action_type="Set Field",
+			field_name="category",
+			field_value="Beta",
+			scheduled_for=near_future_datetime(),
+		)
+		pending = get_pending_action(TEST_DOCTYPE, target.name)
+		self.assertEqual(pending["name"], name)
+		self.assertEqual(pending["action_type"], "Set Field")
+		self.assertEqual(pending["field_name"], "category")

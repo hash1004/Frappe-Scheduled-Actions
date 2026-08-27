@@ -25,7 +25,7 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
+app_include_css = "/assets/scheduled_actions/css/schedule_sidebar.css"
 # value_control.js must load before schedule_menu.js - the latter calls into
 # the scheduled_actions.value_control namespace the former defines.
 app_include_js = [
@@ -139,9 +139,14 @@ app_include_js = [
 
 doc_events = {
 	"*": {
-		"validate": "scheduled_actions.utils.block_edit_while_scheduled",
+		"on_update": "scheduled_actions.utils.cancel_pending_action_on_change",
+		"on_cancel": "scheduled_actions.utils.cancel_pending_action_on_change",
 	}
 }
+# Deletion of the target is deliberately not hooked here - execute_action()
+# already handles a vanished target cleanly ("no longer exists" -> Failed),
+# and "the document was deleted" isn't a change to a still-existing document
+# the way on_update / on_cancel are.
 
 # Scheduled Tasks
 # ---------------

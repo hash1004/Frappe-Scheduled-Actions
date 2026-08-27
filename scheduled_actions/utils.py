@@ -38,35 +38,108 @@ def ensure_doctype_allowed(doctype):
 		)
 
 
-def block_edit_while_scheduled(doc, method=None):
-	"""doc_events['*']['validate'] - refuses to save/submit/cancel any document
-	that has a Pending Scheduled Action against it, so the action can't be
-	invalidated (or produce a surprising result) by an edit that happens
-	between scheduling and firing. The scheduler's own executor bypasses this
-	via doc.flags.ignore_scheduled_action_lock."""
+def cancel_pending_action_on_change(doc, method=None):
+	"""doc_events['*'] for on_update / on_cancel: when a document that has a
+	Pending Scheduled Action against it changes, cancel that action rather
+	than blocking the change, and tell whoever made it. A Scheduled Action
+	captures an intent at a moment in time; once the document has moved on,
+	firing it unattended is more surprising than quietly dropping it. The
+	scheduler's own executor sets doc.flags.ignore_scheduled_action_lock
+	while it performs the action, so the write it makes doesn't cancel the
+	very action it's carrying out."""
 
 	if doc.doctype == "Scheduled Action" or doc.is_new():
 		return
 	if doc.flags.get("ignore_scheduled_action_lock"):
 		return
 
+	# The indexed exists() check is the cheap filter - the overwhelming
+	# majority of saves site-wide have no scheduled action and stop here,
+	# before the more expensive change comparison below.
 	pending = get_pending_action_name(doc.doctype, doc.name)
-	if pending:
-		frappe.throw(
-			_(
-				"This document is locked because {0} is scheduled on it. Cancel the "
-				"scheduled action first if you need to make changes."
-			).format(frappe.utils.get_link_to_form("Scheduled Action", pending)),
-			title=_("Locked by Scheduled Action"),
-		)
+	if not pending:
+		return
+
+	# on_update also fires for a save that changed nothing (a form re-saved
+	# untouched, a programmatic doc.save() from another app's hook). Only a
+	# real change should cost someone their scheduled action; a manual
+	# submit/cancel (on_cancel, or on_update with docstatus moved) always
+	# counts.
+	if method == "on_update" and not _document_meaningfully_changed(doc):
+		return
+
+	status, action_type, scheduled_by = frappe.db.get_value(
+		"Scheduled Action", pending, ["status", "action_type", "scheduled_by"]
+	)
+	# "Running" means a worker has already claimed it and is mid-execution -
+	# let that finish (its own write is exempted via the bypass flag); don't
+	# race it to a Cancelled the executor would then overwrite.
+	if status != "Pending":
+		return
+
+	reason = _("{0} {1} was changed on {2}").format(
+		doc.doctype, doc.name, frappe.utils.format_datetime(frappe.utils.now_datetime())
+	)
+	frappe.db.set_value(
+		"Scheduled Action",
+		pending,
+		{"status": "Cancelled", "error_log": _("Cancelled automatically: {0}.").format(reason)},
+	)
+
+	doc.add_comment(
+		"Info",
+		_("Scheduled action {0} ({1}) was cancelled because this document was changed.").format(
+			pending, action_type
+		),
+	)
+	frappe.msgprint(
+		_("{0} was cancelled because you changed this document. Schedule it again if you still need it.").format(
+			frappe.utils.get_link_to_form("Scheduled Action", pending)
+		),
+		title=_("Scheduled action cancelled"),
+		indicator="orange",
+	)
+
+	# Whoever scheduled the action may not be whoever just changed the
+	# document - let them know it won't run.
+	if scheduled_by and scheduled_by != frappe.session.user:
+		frappe.get_doc({
+			"doctype": "Notification Log",
+			"for_user": scheduled_by,
+			"type": "Alert",
+			"subject": _("Scheduled {0} on {1} {2} was cancelled (document changed)").format(
+				action_type, doc.doctype, doc.name
+			),
+			"document_type": "Scheduled Action",
+			"document_name": pending,
+		}).insert(ignore_permissions=True)
+
+
+def _document_meaningfully_changed(doc):
+	"""True if `doc` differs from its pre-save state in a way worth acting on
+	- any stored field or child-table row changed, or its docstatus moved (a
+	manual submit/cancel of a doc that had an action scheduled counts). Uses
+	the same diff Frappe itself uses to decide whether to record a Version,
+	so "meaningful" here matches "meaningful" everywhere else."""
+	before = doc.get_doc_before_save()
+	if not before:
+		return True
+	if doc.docstatus != before.docstatus:
+		return True
+
+	from frappe.core.doctype.version.version import get_diff
+
+	diff = get_diff(before, doc) or {}
+	return bool(diff.get("changed") or diff.get("added") or diff.get("removed") or diff.get("row_changed"))
 
 
 def get_pending_action_name(reference_doctype, reference_name):
-	# "Running" counts as locked too: a background worker has claimed the
-	# action and is between the claim and actually writing its result, so
-	# the target must stay locked for that window too, not just while
-	# formally "Pending" - otherwise a concurrent edit could race the
-	# worker's own save().
+	"""The Pending (or in-flight Running) Scheduled Action against a document,
+	if any - the "already has one" check on the scheduling side (one at a
+	time per document), what the form sidebar shows, and the trigger for
+	cancel_pending_action_on_change. "Running" is included so a concurrent
+	edit during the claim -> result window is still seen; the auto-cancel
+	path itself re-checks and leaves a Running action alone."""
 	return frappe.db.exists(
 		"Scheduled Action",
 		{
