@@ -7,6 +7,7 @@ const STATUS_COLOR = {
 	Executed: "green",
 	Failed: "red",
 	Cancelled: "gray",
+	Skipped: "purple",
 };
 
 frappe.listview_settings["Scheduled Action"] = {

@@ -29,6 +29,11 @@ before it runs.
   while an action is pending; the form shows a heads-up, and actually
   changing the document cancels the pending action (notifying whoever
   scheduled it) rather than letting something unexpected fire later.
+- **Run only if it still makes sense** - an optional condition
+  (`doc.status == "Open"`) is checked against the document right before
+  firing; if it's false the action is *skipped*, not run. And an optional
+  "skip if more than N minutes late" guards against a backed-up scheduler
+  firing something hours off schedule.
 - **Automated changes are marked** - the target document's timeline shows
   the change "via Scheduled Action" plus a note that it ran automatically,
   so it never looks like someone edited it by hand.
@@ -46,8 +51,8 @@ before it runs.
 - **Manual retry** on a failed action, right from its own form; once an
   action has run, its record is read-only.
 - **Cleans up after itself** - finished actions (Executed/Failed/
-  Cancelled) older than 90 days are cleared automatically; anything still
-  Pending is never touched, regardless of age.
+  Cancelled/Skipped) older than 90 days are cleared automatically;
+  anything still Pending is never touched, regardless of age.
 - **Full per-user timezone handling** - courtesy of Frappe's own Datetime
   field, what you type and see is always in your own timezone.
 
@@ -57,7 +62,9 @@ before it runs.
    **Submit**, **Cancel**, or **Set Field**.
 2. For a field change, pick the field - the value control adapts to that
    field's type automatically.
-3. Pick a date and time, and confirm.
+3. Pick a date and time. Optionally, under **Conditions**, add an
+   expression that must hold when it runs, or a "skip if late by" cutoff.
+   Confirm.
 4. On the first scheduler pass at or after that time, the action runs as
    you (not as Administrator), and you get a notification either way.
 

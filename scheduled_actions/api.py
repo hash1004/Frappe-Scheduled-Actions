@@ -27,7 +27,14 @@ def get_pending_action(reference_doctype, reference_name):
 
 @frappe.whitelist()
 def create_scheduled_action(
-	reference_doctype, reference_name, action_type, scheduled_for, field_name=None, field_value=None
+	reference_doctype,
+	reference_name,
+	action_type,
+	scheduled_for,
+	field_name=None,
+	field_value=None,
+	condition=None,
+	skip_if_late_by=None,
 ):
 	doc = frappe.new_doc("Scheduled Action")
 	doc.reference_doctype = reference_doctype
@@ -36,6 +43,8 @@ def create_scheduled_action(
 	doc.scheduled_for = scheduled_for
 	doc.field_name = field_name
 	doc.field_value = field_value
+	doc.condition = condition
+	doc.skip_if_late_by = skip_if_late_by
 	doc.scheduled_by = frappe.session.user
 	doc.insert()
 	return doc.name
@@ -43,16 +52,16 @@ def create_scheduled_action(
 
 @frappe.whitelist()
 def retry_action(name, scheduled_for=None):
-	"""Re-queues a Failed action: back to Pending with a fresh
+	"""Re-queues a Failed or Skipped action: back to Pending with a fresh
 	scheduled_for (now by default, so it's picked up on the very next
-	scheduler tick) and the previous error cleared. Goes through the
+	scheduler tick) and the previous message cleared. Goes through the
 	normal Document.save() lifecycle rather than a raw field update, so
 	ScheduledAction.validate() - the ownership lock, the doctype/field
 	permission re-checks, all of it - applies exactly as it would to any
 	other edit of this document; nothing here bypasses that."""
 	doc = frappe.get_doc("Scheduled Action", name)
-	if doc.status != "Failed":
-		frappe.throw(_("Only a Failed action can be retried"))
+	if doc.status not in ("Failed", "Skipped"):
+		frappe.throw(_("Only a failed or skipped action can be re-queued"))
 
 	doc.scheduled_for = scheduled_for or frappe.utils.now_datetime()
 	doc.status = "Pending"

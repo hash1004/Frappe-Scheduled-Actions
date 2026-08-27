@@ -21,10 +21,10 @@ const scheduled_action_handlers = {
 
 	refresh(frm) {
 		// Once it's run it's a record - nothing left to edit. (Retry stays
-		// available for Failed via the custom button below; it goes through
-		// api.retry_action, not a form save.) validate_not_finished()
-		// enforces the same server-side.
-		if (!frm.is_new() && ["Executed", "Failed", "Cancelled"].includes(frm.doc.status)) {
+		// available for Failed / Skipped via the custom button below; it
+		// goes through api.retry_action, not a form save.)
+		// validate_not_finished() enforces the same server-side.
+		if (!frm.is_new() && ["Executed", "Failed", "Cancelled", "Skipped"].includes(frm.doc.status)) {
 			frm.disable_form();
 		}
 
@@ -36,7 +36,7 @@ const scheduled_action_handlers = {
 			});
 		}
 
-		if (frm.doc.status === "Failed" && !frm.is_new()) {
+		if (["Failed", "Skipped"].includes(frm.doc.status) && !frm.is_new()) {
 			// Single-attempt execution is deliberate (see tasks.py) - this
 			// is a manual re-queue, not automatic retry-with-backoff. Goes
 			// through api.retry_action (a real Document.save(), not a raw

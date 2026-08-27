@@ -1,9 +1,9 @@
 import frappe
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, get_datetime, now_datetime
 
-# How long a *finished* Scheduled Action (Executed/Failed/Cancelled) is kept
-# before cleanup_old_actions() removes it. Pending/Running rows are never
-# touched regardless of age - see that function's own docstring for why.
+# How long a *finished* Scheduled Action (Executed/Failed/Cancelled/Skipped)
+# is kept before cleanup_old_actions() removes it. Pending/Running rows are
+# never touched regardless of age - see that function's own docstring.
 RETENTION_DAYS = 90
 
 # An action still "Running" this long after it was claimed had its worker
@@ -53,6 +53,14 @@ def execute_action(name):
 			_fail(action, f"{action.reference_doctype} {action.reference_name} no longer exists")
 			return
 
+		if _too_late(action):
+			_skip(
+				action,
+				f"Picked up more than {action.skip_if_late_by} min after the scheduled time "
+				f"(scheduled for {frappe.utils.format_datetime(action.scheduled_for)}).",
+			)
+			return
+
 		# Run as the user who scheduled it, never as Administrator, so
 		# execution can't do anything that user couldn't do themselves
 		# right now.
@@ -64,6 +72,10 @@ def execute_action(name):
 			return
 
 		target = frappe.get_doc(action.reference_doctype, action.reference_name)
+
+		if action.condition and not _condition_met(action, target):
+			return  # _condition_met has already marked it Skipped or Failed
+
 		# This action's own row is Running at this point (see _claim()),
 		# which counts as locked - it would otherwise trip the pending-action
 		# lock on the very save/submit/cancel it's meant to perform.
@@ -118,7 +130,7 @@ def execute_action(name):
 		action.db_set("error_log", "")
 		action.db_set("error_message", "")
 		_annotate_target(action, target)
-		_notify(action, success=True)
+		_notify(action, "succeeded")
 
 	except Exception as e:
 		frappe.db.rollback()
@@ -182,9 +194,9 @@ def _reclaim_stuck_running():
 
 
 def _fail(action, message, traceback=None):
-	"""`message` is the human-readable "what went wrong" (shown as Error on
-	the form, and in the failure notification); `traceback`, when there is
-	one, is the full technical log (shown as Error Log). Every controlled
+	"""`message` is the human-readable "what went wrong" (shown as Message
+	on the form, and in the failure notification); `traceback`, when there
+	is one, is the full technical log (shown as Error Log). Every controlled
 	failure path passes a plain message and no traceback - only the catch-
 	all in execute_action() has one."""
 	log = message if not traceback else f"{message}\n\n{traceback}"
@@ -192,7 +204,42 @@ def _fail(action, message, traceback=None):
 	action.db_set("executed_on", now_datetime())
 	action.db_set("error_message", (message or "").strip()[:1000])
 	action.db_set("error_log", (log or "").strip()[:9000])
-	_notify(action, success=False)
+	_notify(action, "failed")
+
+
+def _skip(action, reason):
+	"""The action's preconditions no longer hold (a false condition, or it's
+	too late) - record it as Skipped with the reason, rather than running
+	something that isn't wanted any more or firing hours off schedule."""
+	action.db_set("status", "Skipped")
+	action.db_set("executed_on", now_datetime())
+	action.db_set("error_message", (reason or "").strip()[:1000])
+	_notify(action, "skipped")
+
+
+def _too_late(action):
+	if not action.skip_if_late_by:
+		return False
+	deadline = add_to_date(get_datetime(action.scheduled_for), minutes=action.skip_if_late_by)
+	return now_datetime() > deadline
+
+
+def _condition_met(action, target):
+	"""Evaluate the action's `condition` against the target document. A false
+	condition -> Skipped; a condition that errors -> Failed (it's a broken
+	expression, not an intentional skip). Returns True only when the action
+	should proceed."""
+	from frappe.email.doctype.notification.notification import get_context
+
+	try:
+		met = frappe.safe_eval(action.condition, None, get_context(target))
+	except Exception as e:
+		_fail(action, frappe._("The condition could not be evaluated: {0}").format(_friendly_error(e)))
+		return False
+	if not met:
+		_skip(action, frappe._("Condition not met: {0}").format(action.condition))
+		return False
+	return True
 
 
 def _friendly_error(exc):
@@ -227,8 +274,8 @@ def _annotate_target(action, target):
 
 
 def cleanup_old_actions(retention_days=RETENTION_DAYS):
-	"""Deletes Scheduled Action rows that *finished* (Executed, Failed, or
-	Cancelled) more than `retention_days` ago. Runs daily via
+	"""Deletes Scheduled Action rows that *finished* (Executed, Failed,
+	Cancelled, or Skipped) more than `retention_days` ago. Runs daily via
 	scheduler_events.
 
 	Deliberately not using Frappe's own default_log_clearing_doctypes hook
@@ -246,24 +293,26 @@ def cleanup_old_actions(retention_days=RETENTION_DAYS):
 	frappe.db.delete(
 		"Scheduled Action",
 		filters={
-			"status": ["in", ("Executed", "Failed", "Cancelled")],
+			"status": ["in", ("Executed", "Failed", "Cancelled", "Skipped")],
 			"modified": ["<", cutoff],
 		},
 	)
 	frappe.db.commit()
 
 
-def _notify(action, success):
+def _notify(action, outcome):
+	"""outcome: "succeeded" | "failed" | "skipped" (already translatable
+	words from the caller's point of view - passed through _())."""
 	if not action.scheduled_by:
 		return
 	subject = frappe._("Scheduled {0} on {1} {2} {3}").format(
 		action.action_type,
 		action.reference_doctype,
 		action.reference_name,
-		frappe._("succeeded") if success else frappe._("failed"),
+		frappe._(outcome),
 	)
-	# So the notification itself says *why*, not just "it failed".
-	if not success and action.get("error_message"):
+	# So the notification itself says *why*, not just "it failed / skipped".
+	if outcome != "succeeded" and action.get("error_message"):
 		subject = f"{subject}: {action.error_message}"
 	frappe.get_doc(
 		{

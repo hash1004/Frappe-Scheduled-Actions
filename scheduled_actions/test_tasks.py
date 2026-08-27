@@ -101,6 +101,74 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
 		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Beta")
 
+	def test_condition_true_lets_the_action_run(self):
+		target = make_test_doc(category="Alpha")
+		name = _schedule(
+			target, "Set Field", field_name="category", field_value="Beta", condition='doc.category == "Alpha"'
+		)
+
+		execute_action(name)
+
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
+		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Beta")
+
+	def test_condition_false_skips_the_action(self):
+		target = make_test_doc(category="Alpha")
+		name = _schedule(
+			target, "Set Field", field_name="category", field_value="Beta", condition='doc.category == "Gamma"'
+		)
+
+		execute_action(name)
+
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_message"], as_dict=True)
+		self.assertEqual(row.status, "Skipped")
+		self.assertIn("Condition not met", row.error_message)
+		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "category"), "Alpha")  # untouched
+
+	def test_condition_that_errors_at_runtime_fails(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit", condition="doc.amount / 0 > 1")
+
+		execute_action(name)
+
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_message"], as_dict=True)
+		self.assertEqual(row.status, "Failed")
+		self.assertIn("could not be evaluated", row.error_message)
+
+	def test_skip_if_late_by_skips_a_stale_action(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit", skip_if_late_by=10)
+		frappe.db.set_value(
+			"Scheduled Action", name, "scheduled_for", add_to_date(now_datetime(), minutes=-30)
+		)
+		frappe.db.commit()
+
+		execute_action(name)
+
+		row = frappe.db.get_value("Scheduled Action", name, ["status", "error_message"], as_dict=True)
+		self.assertEqual(row.status, "Skipped")
+		self.assertIn("after the scheduled time", row.error_message)
+		self.assertEqual(frappe.db.get_value(TEST_DOCTYPE, target.name, "docstatus"), 0)
+
+	def test_skip_if_late_by_still_runs_within_the_window(self):
+		target = make_test_doc()
+		name = _schedule(target, "Submit", skip_if_late_by=60)  # 5s late, well within 60 min
+		execute_action(name)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
+
+	def test_a_skipped_action_can_be_requeued(self):
+		from scheduled_actions.api import retry_action
+
+		target = make_test_doc(category="Alpha")
+		name = _schedule(
+			target, "Set Field", field_name="category", field_value="Beta", condition="1 == 2"
+		)
+		execute_action(name)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Skipped")
+
+		retry_action(name)
+		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Pending")
+
 	def test_execute_leaves_an_automated_change_note_on_the_target(self):
 		target = make_test_doc(category="Alpha")
 		name = _schedule(target, "Set Field", field_name="category", field_value="Beta")

@@ -183,10 +183,14 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 			reference_name=target.name,
 			action_type="Submit",
 			scheduled_for=near_future_datetime(),
+			condition='doc.category == "Alpha"',
+			skip_if_late_by=15,
 		)
 		doc = frappe.get_doc("Scheduled Action", name)
 		self.assertEqual(doc.status, "Pending")
 		self.assertEqual(doc.scheduled_by, frappe.session.user)
+		self.assertEqual(doc.condition, 'doc.category == "Alpha"')
+		self.assertEqual(doc.skip_if_late_by, 15)
 
 	def test_get_pending_action_returns_the_row_or_none(self):
 		target = make_test_doc()

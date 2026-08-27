@@ -223,6 +223,29 @@ scheduled_actions.open_dialog = function (frm) {
 			// frappe/public/js/frappe/form/controls/datetime.js), and
 			// converts what's typed/shown to/from it transparently.
 			reqd: 1,
+		},
+		{
+			fieldname: "advanced_section",
+			fieldtype: "Section Break",
+			label: __("Conditions (optional)"),
+			collapsible: 1,
+		},
+		{
+			fieldname: "condition",
+			fieldtype: "Small Text",
+			label: __("Only run if"),
+			description: __(
+				'A Python expression checked against the document just before it runs, e.g. doc.status == "Open". If it\'s false, the action is skipped.'
+			),
+		},
+		{
+			fieldname: "skip_if_late_by",
+			fieldtype: "Int",
+			label: __("Skip if late by (minutes)"),
+			non_negative: 1,
+			description: __(
+				"If the scheduler is behind and picks this up more than this many minutes late, skip it instead of running it."
+			),
 		}
 	);
 
@@ -240,6 +263,8 @@ scheduled_actions.open_dialog = function (frm) {
 					scheduled_for: values.scheduled_for,
 					field_name: values.field_name,
 					field_value: values.field_value,
+					condition: values.condition,
+					skip_if_late_by: values.skip_if_late_by,
 				},
 				freeze: true,
 				callback: (r) => {
