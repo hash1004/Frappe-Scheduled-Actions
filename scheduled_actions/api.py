@@ -65,7 +65,7 @@ def retry_action(name, scheduled_for=None):
 @frappe.whitelist()
 def get_blocked_doctypes():
 	"""The doctypes a Scheduled Action can never target - used by the client
-	to decide whether to show the "Schedule..." menu/sidebar entry at all on
+	to decide whether to show the "Schedule..." sidebar entry at all on
 	a given doctype's own form. Not a security boundary by itself:
 	ScheduledAction.validate_reference() enforces the same list server-side
 	regardless of what the client sends."""
