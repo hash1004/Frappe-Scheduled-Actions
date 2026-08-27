@@ -14,6 +14,7 @@ class ScheduledAction(Document):
 	def validate(self):
 		self.validate_reference()
 		self.validate_action()
+		self.validate_condition()
 		self.validate_schedule()
 		self.validate_not_finished()
 
@@ -27,9 +28,20 @@ class ScheduledAction(Document):
 			if "System Manager" not in frappe.get_roles():
 				frappe.throw(_("Only {0} can modify this Scheduled Action").format(self.scheduled_by))
 
+	def validate_condition(self):
+		"""`condition` is a Python *expression* evaluated at run time (see
+		tasks._condition_met). Catch a broken one now - an unbalanced paren,
+		an accidental assignment - rather than at execution."""
+		if not self.condition:
+			return
+		try:
+			compile(self.condition, "<scheduled-action-condition>", "eval")
+		except SyntaxError as e:
+			frappe.throw(_("Condition is not a valid expression: {0}").format(e.msg))
+
 	def validate_not_finished(self):
 		"""Once an action has run there's nothing to edit - it's a record.
-		The one exception is retrying a Failed one (Failed -> Pending, via
+		The exception is re-queuing a Failed or Skipped one (-> Pending, via
 		api.retry_action); Executed and Cancelled are frozen. The executor
 		itself uses db_set(), which doesn't run validate, so this only ever
 		gates a human editing the form."""
@@ -40,8 +52,8 @@ class ScheduledAction(Document):
 		was = frappe.db.get_value("Scheduled Action", self.name, "status")
 		if was in ("Executed", "Cancelled"):
 			frappe.throw(_("This scheduled action already {0} and can't be edited.").format(was.lower()))
-		if was == "Failed" and self.status != "Pending":
-			frappe.throw(_("A failed scheduled action can only be retried."))
+		if was in ("Failed", "Skipped") and self.status != "Pending":
+			frappe.throw(_("A {0} scheduled action can only be re-queued.").format(was.lower()))
 
 	def validate_reference(self):
 		ensure_doctype_allowed(self.reference_doctype)

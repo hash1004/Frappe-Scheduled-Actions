@@ -291,6 +291,32 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		finally:
 			frappe.set_user(original_user)
 
+	def test_invalid_condition_expression_is_rejected(self):
+		target = make_test_doc()
+		for bad in ("doc.status = 'Open'", "doc.status ==", "(1 + "):
+			doc = frappe.get_doc({
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"condition": bad,
+				"scheduled_for": near_future_datetime(),
+			})
+			with self.assertRaises(frappe.ValidationError, msg=bad):
+				doc.insert(ignore_permissions=True)
+
+	def test_valid_condition_expression_is_accepted(self):
+		target = make_test_doc()
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Submit",
+			"condition": 'doc.category == "Alpha" and doc.amount > 0',
+			"scheduled_for": near_future_datetime(),
+		})
+		doc.insert(ignore_permissions=True)  # must not raise
+
 	def test_a_cancelled_action_cannot_be_edited(self):
 		target = make_test_doc()
 		doc = frappe.get_doc({
