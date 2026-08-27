@@ -24,8 +24,10 @@ that everything's still valid right before it runs.
 - **Runs as the scheduling user, never as Administrator** - and re-checks
   that user's doctype- and field-level permissions again right before
   firing, since they can change between scheduling and execution.
-- **Locks the target document while a schedule is pending** - no editing
-  it out from under the action between now and when it fires.
+- **Edits win over a stale schedule** - the document stays fully editable
+  while an action is pending; the form shows a heads-up, and actually
+  changing the document cancels the pending action (notifying whoever
+  scheduled it) rather than letting something unexpected fire later.
 - **Never fires twice** - an atomic claim guards against overlapping
   scheduler ticks or a retried background job executing the same action
   more than once.

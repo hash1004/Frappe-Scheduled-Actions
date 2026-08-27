@@ -1,7 +1,9 @@
-// Adds Scheduled Actions to every form: a "Schedule..." action in the
-// sidebar next to Assign/Attach/Share, and a read-only lock (with banner)
-// when a Scheduled Action is already Pending (or Running - see
-// get_pending_action) against the open document.
+// Adds Scheduled Actions to every form: a "Schedule" section in the sidebar
+// next to Assign/Attach/Share - a "+" to schedule an action, the pending
+// action listed below it - plus a non-blocking banner when one is pending.
+// (A pending action no longer locks the form: utils.
+// cancel_pending_action_on_change cancels it server-side the moment the
+// document is actually changed.)
 frappe.provide("scheduled_actions");
 
 // Fetched once and cached (not per-form-refresh) - this doesn't change
@@ -58,56 +60,71 @@ scheduled_actions.setup_form = function (frm) {
 		frappe.call({
 			method: "scheduled_actions.api.get_pending_action",
 			args: { reference_doctype: frm.doctype, reference_name: frm.docname },
-			callback: (r) => {
-				if (r.message) {
-					scheduled_actions.lock_form(frm, r.message);
-				} else {
-					scheduled_actions.add_sidebar_action(frm);
-				}
-			},
+			callback: (r) => scheduled_actions.render_sidebar(frm, r.message || null),
 		});
 	});
 };
 
-scheduled_actions.lock_form = function (frm, pending) {
-	frm.disable_form();
-	frm.set_intro(
-		__("Locked: {0} is scheduled for {1} ({2})", [
-			pending.action_type,
-			frappe.datetime.str_to_user(pending.scheduled_for),
-			`<a href="/app/scheduled-action/${pending.name}">${__("view")}</a>`,
-		]),
-		"orange"
-	);
+// Non-blocking heads-up - the form stays fully editable (see the file
+// header). Yellow, dismissable, re-shown on the next form-refresh.
+scheduled_actions.notify_pending = function (frm, pending) {
+	const when = frappe.datetime.str_to_user(pending.scheduled_for);
+	const link = `<a href="/app/scheduled-action/${pending.name}">${__("view")}</a>`;
+	const msg = __("{0} is scheduled for {1} - editing this document will cancel it. ({2})", [
+		__(pending.action_type),
+		when,
+		link,
+	]);
+	frm.set_intro(msg, "yellow");
 };
 
-scheduled_actions.add_sidebar_action = function (frm) {
+scheduled_actions.render_sidebar = function (frm, pending) {
 	if (!frm.sidebar || !frm.sidebar.sidebar) return; // form sidebar disabled
-	if (frm.sidebar.sidebar.find(".form-schedule").length) return; // already added this render
 
 	const can_write = !!(frm.perm && frm.perm[0] && frm.perm[0].write);
 	const can_submit = !!(frm.perm && frm.perm[0] && frm.perm[0].submit);
 	if (!can_write && !can_submit) return;
 
-	// Deliberately not frm.sidebar.add_user_action() - that renders into a
-	// separate "Links" section as a plain hyperlink, which is what looked
-	// out of place. This instead matches the exact markup every other
-	// sidebar action uses (Assign/Attachments/Tags/Share - see
-	// form_sidebar.html: a .sidebar-section > .form-sidebar-items >
-	// .form-sidebar-label with an icon), and sits in that same list of
-	// actions, right before Share, instead of in its own section below it.
+	// Rebuilt from scratch on every form-refresh (the pending action changes
+	// as it's scheduled / cancelled / fired), so drop any prior copy rather
+	// than the usual "bail if already present" guard.
+	frm.sidebar.sidebar.find(".form-schedule").remove();
+
+	// Markup mirrors form_sidebar.html's .form-shared section exactly - a
+	// .form-sidebar-items row (flex, space-between) holding a .form-sidebar-
+	// label and an .icon-btn "+" button, with a list container below - so
+	// form_sidebar.scss lays the frame out like the built-in Assign /
+	// Attachments / Share sections. schedule_sidebar.css covers only what
+	// those built-in selectors don't reach (the "+" button, the rows).
 	const section = $(`
 		<div class="sidebar-section form-schedule">
 			<div>
 				<span class="form-sidebar-items">
-					<a class="form-sidebar-label">
+					<span class="schedule-label form-sidebar-label">
 						${frappe.utils.icon("clock")}
 						<span class="ellipsis">${__("Schedule")}</span>
-					</a>
+					</span>
+					<button class="add-schedule-btn btn btn-link icon-btn" title="${__("Schedule an action")}">
+						<svg class="es-icon icon-sm"><use href="#es-line-add"></use></svg>
+					</button>
 				</span>
+				<div class="scheduled-actions"></div>
 			</div>
 		</div>
 	`);
+
+	const open = () => scheduled_actions.open_dialog(frm);
+	section.find(".schedule-label").on("click", open);
+	section.find(".add-schedule-btn").on("click", open);
+
+	if (pending) {
+		scheduled_actions.render_pending_row(section.find(".scheduled-actions"), pending);
+		// Scheduling a second action would just be rejected server-side
+		// (one pending action per document), so hide the "+" while one is
+		// pending - the row links to it for cancelling.
+		section.find(".add-schedule-btn").remove();
+		scheduled_actions.notify_pending(frm, pending);
+	}
 
 	const share_section = frm.sidebar.sidebar.find(".form-shared");
 	if (share_section.length) {
@@ -115,8 +132,23 @@ scheduled_actions.add_sidebar_action = function (frm) {
 	} else {
 		section.appendTo(frm.sidebar.sidebar);
 	}
+};
 
-	section.find(".form-sidebar-label").on("click", () => scheduled_actions.open_dialog(frm));
+// One row - action type, plus the field name for a Set Field action -
+// linking to the Scheduled Action itself. Built as a list (like
+// Attachments) even though there's only ever one, so it reads as "what's
+// scheduled on this document".
+scheduled_actions.render_pending_row = function ($list, pending) {
+	const runs = __("Runs {0}", [frappe.datetime.str_to_user(pending.scheduled_for)]);
+	const $row = $('<a class="scheduled-action-row"></a>')
+		.attr("href", `/app/scheduled-action/${pending.name}`)
+		.attr("title", runs);
+
+	$('<span class="scheduled-action-type"></span>').text(__(pending.action_type)).appendTo($row);
+	if (pending.action_type === "Set Field" && pending.field_name) {
+		$('<span class="scheduled-action-field"></span>').text(pending.field_name).appendTo($row);
+	}
+	$row.appendTo($list);
 };
 
 // One entry point (the sidebar action) -> the dialog always shows the
