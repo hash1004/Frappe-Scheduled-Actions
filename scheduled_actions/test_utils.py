@@ -101,6 +101,20 @@ class IntegrationTestScheduledActionsUtils(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Cancelled")
 
+	def test_deleting_the_target_deletes_all_its_scheduled_actions(self):
+		# The Dynamic Link would otherwise block the target from ever being
+		# deleted; on_trash clears the rows before Frappe's link check runs.
+		target = make_test_doc()
+		finished = _schedule(target)
+		frappe.db.set_value("Scheduled Action", finished, "status", "Executed")
+		frappe.db.commit()
+		pending = _schedule(target)
+
+		frappe.delete_doc(TEST_DOCTYPE, target.name, ignore_permissions=True)  # not blocked
+
+		self.assertFalse(frappe.db.exists("Scheduled Action", finished))
+		self.assertFalse(frappe.db.exists("Scheduled Action", pending))
+
 	def test_ensure_doctype_allowed_raises_for_blocked(self):
 		with self.assertRaises(frappe.PermissionError):
 			ensure_doctype_allowed("User")

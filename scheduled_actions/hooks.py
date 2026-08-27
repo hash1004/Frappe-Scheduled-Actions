@@ -141,12 +141,9 @@ doc_events = {
 	"*": {
 		"on_update": "scheduled_actions.utils.cancel_pending_action_on_change",
 		"on_cancel": "scheduled_actions.utils.cancel_pending_action_on_change",
+		"on_trash": "scheduled_actions.utils.clear_actions_on_target_delete",
 	}
 }
-# Deletion of the target is deliberately not hooked here - execute_action()
-# already handles a vanished target cleanly ("no longer exists" -> Failed),
-# and "the document was deleted" isn't a change to a still-existing document
-# the way on_update / on_cancel are.
 
 # Scheduled Tasks
 # ---------------

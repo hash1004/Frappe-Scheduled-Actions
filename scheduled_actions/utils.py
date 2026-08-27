@@ -115,6 +115,22 @@ def cancel_pending_action_on_change(doc, method=None):
 		}).insert(ignore_permissions=True)
 
 
+def clear_actions_on_target_delete(doc, method=None):
+	"""doc_events['*']['on_trash'] - a Scheduled Action points at its target
+	through a Dynamic Link (reference_name), which otherwise blocks the
+	target from ever being deleted ("Cannot delete ... is linked with
+	Scheduled Action ..."). on_trash runs before Frappe's link check, so
+	dropping the rows here clears the way. The actions are meaningless once
+	their target is gone anyway - a Pending one would only fail, a finished
+	one is history the daily cleanup drops regardless."""
+	if doc.doctype == "Scheduled Action":
+		return
+	frappe.db.delete(
+		"Scheduled Action",
+		{"reference_doctype": doc.doctype, "reference_name": doc.name},
+	)
+
+
 def _document_meaningfully_changed(doc):
 	"""True if `doc` differs from its pre-save state in a way worth acting on
 	- any stored field or child-table row changed, or its docstatus moved (a

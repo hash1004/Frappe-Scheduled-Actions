@@ -47,6 +47,16 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 		self.assertEqual(by_name["category"]["options"], "Alpha\nBeta\nGamma")
 		self.assertEqual(by_name["is_flagged"]["fieldtype"], "Check")
 
+	def test_get_settable_fields_excludes_hidden_and_read_only(self):
+		with patch(
+			GET_PERMITTED_FIELDS_TARGET,
+			return_value=["title", "category", "internal_flag", "computed_score"],
+		):
+			names = {f["fieldname"] for f in get_settable_fields(TEST_DOCTYPE)}
+		self.assertIn("title", names)
+		self.assertNotIn("internal_flag", names)  # hidden
+		self.assertNotIn("computed_score", names)  # read_only
+
 	def test_get_settable_fields_blocked_doctype_throws(self):
 		with self.assertRaises(frappe.PermissionError):
 			get_settable_fields("User")
@@ -134,8 +144,11 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 		frappe.db.commit()
 
 		# Same "target deleted before firing" shape used elsewhere to get a
-		# real Failed row without waiting on anything.
-		frappe.delete_doc(TEST_DOCTYPE, target.name, force=True, ignore_permissions=True)
+		# real Failed row without waiting on anything (ignore_on_trash so the
+		# on_trash hook doesn't just delete the action).
+		frappe.delete_doc(
+			TEST_DOCTYPE, target.name, force=True, ignore_permissions=True, ignore_on_trash=True
+		)
 		frappe.db.commit()
 		execute_action(doc.name)
 		self.assertEqual(frappe.db.get_value("Scheduled Action", doc.name, "status"), "Failed")

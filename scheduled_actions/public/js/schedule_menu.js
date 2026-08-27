@@ -114,16 +114,19 @@ scheduled_actions.render_sidebar = function (frm, pending) {
 	`);
 
 	const open = () => scheduled_actions.open_dialog(frm);
-	section.find(".schedule-label").on("click", open);
 	section.find(".add-schedule-btn").on("click", open);
 
 	if (pending) {
 		scheduled_actions.render_pending_row(section.find(".scheduled-actions"), pending);
-		// Scheduling a second action would just be rejected server-side
-		// (one pending action per document), so hide the "+" while one is
-		// pending - the row links to it for cancelling.
+		// One pending action per document (server-side invariant), so
+		// while one exists neither the "+" nor the label opens the dialog -
+		// there's nothing to add. The label is just a section header now;
+		// the row below links to the action to cancel it.
+		section.addClass("has-pending");
 		section.find(".add-schedule-btn").remove();
 		scheduled_actions.notify_pending(frm, pending);
+	} else {
+		section.find(".schedule-label").on("click", open);
 	}
 
 	const share_section = frm.sidebar.sidebar.find(".form-shared");
