@@ -16,8 +16,10 @@ UNSETTABLE_FIELDTYPES = NO_VALUE_FIELDS | {"Attach", "Attach Image"}
 # (User, Role, DocType, DocPerm, Custom Field, Client Script, ...). We reuse
 # it rather than keep a second list in sync, plus a short addendum for
 # doctypes not in that list but equally dangerous to schedule an unattended
-# change against.
+# change against - and "Scheduled Action" itself, so an action can't target
+# another action (or its own).
 BLOCKED_DOCTYPES = frozenset(core_doctypes_list) | {
+	"Scheduled Action",
 	"Server Script",
 	"System Settings",
 	"Role Profile",

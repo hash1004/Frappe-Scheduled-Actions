@@ -29,9 +29,13 @@ before it runs.
   while an action is pending; the form shows a heads-up, and actually
   changing the document cancels the pending action (notifying whoever
   scheduled it) rather than letting something unexpected fire later.
-- **Never fires twice** - an atomic claim guards against overlapping
-  scheduler ticks or a retried background job executing the same action
-  more than once.
+- **Automated changes are marked** - the target document's timeline shows
+  the change "via Scheduled Action" plus a note that it ran automatically,
+  so it never looks like someone edited it by hand.
+- **Never fires twice, and recovers from a lost worker** - an atomic claim
+  guards against overlapping scheduler ticks; an action left mid-execution
+  by a killed worker (OOM, restart, deploy) is failed and flagged for
+  retry rather than stuck forever.
 - **Doesn't block the scheduler** - each scheduler pass only looks up
   what's due and hands it to a background worker; the action itself runs
   off the scheduler's critical path.

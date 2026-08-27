@@ -128,5 +128,16 @@ class IntegrationTestScheduledActionsUtils(IntegrationTestCase):
 		self.assertTrue(set(core_doctypes_list).issubset(BLOCKED_DOCTYPES))
 
 	def test_blocked_doctypes_includes_security_addendum(self):
-		for doctype in ("Server Script", "System Settings", "Role Profile", "OAuth Client", "Webhook"):
+		for doctype in (
+			"Scheduled Action",
+			"Server Script",
+			"System Settings",
+			"Role Profile",
+			"OAuth Client",
+			"Webhook",
+		):
 			self.assertIn(doctype, BLOCKED_DOCTYPES)
+
+	def test_scheduled_action_cannot_target_a_scheduled_action(self):
+		with self.assertRaises(frappe.PermissionError):
+			ensure_doctype_allowed("Scheduled Action")
