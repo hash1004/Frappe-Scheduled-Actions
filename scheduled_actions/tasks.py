@@ -85,6 +85,14 @@ def execute_action(name):
 				_fail(action, f"{action.scheduled_by} no longer has permission to set {action.field_name}")
 				return
 
+			# validate() rejects an empty field_value now, but rows created
+			# before that check (a mirror-sync that never fired) could still
+			# be Pending - fail them loudly rather than silently blanking the
+			# target field.
+			if action.field_value is None or action.field_value == "":
+				_fail(action, f"No value was captured for {action.field_name} - re-create the action")
+				return
+
 			value = cast_value(action.reference_doctype, action.field_name, action.field_value)
 			target.set(action.field_name, value)
 			target.save()

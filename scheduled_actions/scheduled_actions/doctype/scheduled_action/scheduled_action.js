@@ -1,12 +1,14 @@
 // Copyright (c) 2026, Abdul Hannan and contributors
 // For license information, please see license.txt
 
-// field_name's picker and the field_value_* mirror controls (Select/Link/
-// Check/Date/Datetime/Number/plain-text) are shared with the "Schedule..."
-// Dialog in public/js/schedule_menu.js - see public/js/value_control.js,
-// loaded globally via app_include_js so it's already available here.
+// field_name's picker and the field_value_* mirror controls (one per
+// category in value_control.js's MIRROR_FIELD_BY_CATEGORY - Select/Link/
+// Check/Date/Datetime/Time/Color/Duration/Number, plus the plain-text
+// fallback) are shared with the "Schedule..." Dialog in
+// public/js/schedule_menu.js - see public/js/value_control.js, loaded
+// globally via app_include_js so it's already available here.
 
-frappe.ui.form.on("Scheduled Action", {
+const scheduled_action_handlers = {
 	setup(frm) {
 		// Blocked doctypes (see utils.BLOCKED_DOCTYPES) and Singles should
 		// never be offered here at all, not just rejected on save - a
@@ -46,12 +48,12 @@ frappe.ui.form.on("Scheduled Action", {
 
 		gate_action_type(frm);
 
-		// A saved doc only ever persists field_value (the mirrors are a
-		// pure UI convenience, not stored) - re-derive which mirror should
-		// be showing from the current field_name and push the persisted
-		// value into it, every refresh. Chained after the options call
-		// (not fired in parallel) since it needs that call's field metadata
-		// to know which mirror is even the right one.
+		// field_value is the single source of truth (it's what tasks.py
+		// reads); the mirrors are just the typed editing surface. Re-derive
+		// which mirror should be showing from the current field_name and
+		// push field_value into it, every refresh. Chained after the options
+		// call (not fired in parallel) since it needs that call's field
+		// metadata to know which mirror is even the right one.
 		build_field_name_options(frm, () => apply_current_field(frm, frm.doc.field_value));
 	},
 
@@ -74,13 +76,20 @@ frappe.ui.form.on("Scheduled Action", {
 		apply_current_field(frm, undefined); // fetches the current value itself
 	},
 
-	field_value_select(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "select"); },
-	field_value_link(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "link"); },
-	field_value_check(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "check"); },
-	field_value_date(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "date"); },
-	field_value_datetime(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "datetime"); },
-	field_value_number(frm) { scheduled_actions.value_control.sync_mirror_to_field_value(frm, "number"); },
+};
+
+// One change handler per mirror control, keeping the persisted field_value
+// in step with whichever mirror is active - generated from the shared map
+// rather than hand-listed, so a fieldtype added to value_control.js can't
+// be silently missed here (Color/Time/Duration edits used to not persist
+// on this form for exactly that reason - the Dialog wired them, this
+// didn't).
+Object.entries(scheduled_actions.value_control.MIRROR_FIELD_BY_CATEGORY).forEach(([category, fieldname]) => {
+	scheduled_action_handlers[fieldname] = (frm) =>
+		scheduled_actions.value_control.sync_mirror_to_field_value(frm, category);
 });
+
+frappe.ui.form.on("Scheduled Action", scheduled_action_handlers);
 
 // A doctype that can't be submitted has no meaningful Submit/Cancel action,
 // so lock Action Type to "Set Field" instead of letting the user pick a
