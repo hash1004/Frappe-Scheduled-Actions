@@ -327,7 +327,7 @@ scheduled_actions.open_dialog = function (frm) {
 	if (can_set_field) {
 		frappe.call({
 			method: "scheduled_actions.api.get_settable_fields",
-			args: { doctype: frm.doctype },
+			args: { doctype: frm.doctype, name: frm.docname },
 			callback: (r) => {
 				const fields_list = r.message || [];
 				settable_fields_by_name = {};

@@ -61,6 +61,31 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			get_settable_fields("User")
 
+	def test_get_settable_fields_filters_depends_on_hidden_for_a_given_doc(self):
+		# note_when_flagged        -> "eval:doc.is_flagged"
+		# note_when_flagged_alpha  -> "eval:doc.is_flagged && doc.category === "Alpha""
+		perms = ["title", "note_when_flagged", "note_when_flagged_alpha"]
+		flagged_alpha = make_test_doc(is_flagged=1, category="Alpha")
+		flagged_beta = make_test_doc(is_flagged=1, category="Beta")
+		plain = make_test_doc(is_flagged=0)
+
+		def fields(name):
+			with patch(GET_PERMITTED_FIELDS_TARGET, return_value=perms):
+				return {f["fieldname"] for f in get_settable_fields(TEST_DOCTYPE, name)}
+
+		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=perms):
+			no_doc = {f["fieldname"] for f in get_settable_fields(TEST_DOCTYPE)}
+
+		self.assertIn("note_when_flagged", no_doc)  # no doc -> no context filter
+
+		self.assertNotIn("note_when_flagged", fields(plain.name))  # unflagged
+		self.assertIn("note_when_flagged", fields(flagged_beta.name))
+
+		# the "&&" / "===" expression is translated and evaluated too
+		self.assertIn("note_when_flagged_alpha", fields(flagged_alpha.name))
+		self.assertNotIn("note_when_flagged_alpha", fields(flagged_beta.name))
+		self.assertNotIn("note_when_flagged_alpha", fields(plain.name))
+
 	def test_get_field_current_value_returns_value(self):
 		target = make_test_doc(category="Gamma")
 		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=["category"]):

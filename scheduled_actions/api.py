@@ -107,23 +107,35 @@ def reference_doctype_query(doctype, txt, searchfield, start, page_len, filters)
 
 
 @frappe.whitelist()
-def get_settable_fields(doctype):
+def get_settable_fields(doctype, name=None):
 	"""Fields on `doctype` that are reasonable - and permitted - to schedule
 	a value change for: skips layout/table/attachment fields, read-only and
 	hidden fields, and is scoped to fields the current user has
 	permlevel-write access to (mirrors the server-side check in
 	ScheduledAction.validate_action(), so the picker never offers a field
-	that would just be rejected on save)."""
+	that would just be rejected on save).
+
+	When `name` is given, also skips fields hidden by a `depends_on` that's
+	currently false on that document (e.g. Event's weekday fields when it
+	isn't a repeating event) - a soft, context-only filter, not enforced on
+	save, since the document's state can change before the action runs."""
 	ensure_doctype_allowed(doctype)
 
 	meta = frappe.get_meta(doctype)
 	permitted = set(get_permitted_fields(doctype, permission_type="write"))
+
+	doc = None
+	if name:
+		doc = frappe.get_doc(doctype, name)
+		doc.check_permission("read")
 
 	out = []
 	for df in meta.fields:
 		if df.fieldtype in UNSETTABLE_FIELDTYPES or df.read_only or df.hidden:
 			continue
 		if df.fieldname not in permitted:
+			continue
+		if doc is not None and not _depends_on_holds(doc, df.depends_on):
 			continue
 		out.append({
 			"fieldname": df.fieldname,
@@ -132,6 +144,31 @@ def get_settable_fields(doctype):
 			"options": df.options,
 		})
 	return out
+
+
+def _depends_on_holds(doc, depends_on):
+	"""Best-effort evaluation of a field's depends_on against `doc`. A bare
+	value is a fieldname ("show if doc.<name> is truthy"); an `eval:` value
+	is a *JavaScript* expression - the operators that differ from Python are
+	translated so safe_eval can run the common ones (doc.a && doc.b ===
+	"c", !doc.x). Returns True (show the field) for anything we can't
+	decide - a filter that stays quiet beats one that hides a real field."""
+	if not depends_on:
+		return True
+	if not depends_on.startswith("eval:"):
+		return bool(doc.get(depends_on))
+	expr = (
+		depends_on[len("eval:") :]
+		.replace("&&", " and ")
+		.replace("||", " or ")
+		.replace("!==", " != ")
+		.replace("===", " == ")
+		.replace("!doc.", "not doc.")
+	)
+	try:
+		return bool(frappe.safe_eval(expr, None, {"doc": doc}))
+	except Exception:
+		return True
 
 
 @frappe.whitelist()

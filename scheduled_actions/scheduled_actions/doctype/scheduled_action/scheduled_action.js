@@ -134,7 +134,7 @@ function build_field_name_options(frm, on_done) {
 
 	frappe.call({
 		method: "scheduled_actions.api.get_settable_fields",
-		args: { doctype: frm.doc.reference_doctype },
+		args: { doctype: frm.doc.reference_doctype, name: frm.doc.reference_name },
 		callback: (r) => {
 			const fields_list = r.message || [];
 			frm._settable_fields_by_name = {};
