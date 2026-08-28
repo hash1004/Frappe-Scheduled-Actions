@@ -13,7 +13,9 @@
   "linked_doctype",
   "dynamic_ref",
   "internal_flag",
-  "computed_score"
+  "computed_score",
+  "note_when_flagged",
+  "note_when_flagged_alpha"
  ],
  "fields": [
   {
@@ -61,12 +63,24 @@
    "fieldtype": "Float",
    "label": "Computed Score",
    "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.is_flagged",
+   "fieldname": "note_when_flagged",
+   "fieldtype": "Data",
+   "label": "Note When Flagged"
+  },
+  {
+   "depends_on": "eval:doc.is_flagged && doc.category === \"Alpha\"",
+   "fieldname": "note_when_flagged_alpha",
+   "fieldtype": "Data",
+   "label": "Note When Flagged Alpha"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-27 12:00:00.000000",
+ "modified": "2026-08-28 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Scheduled Actions",
  "name": "Scheduled Actions Test Doc",

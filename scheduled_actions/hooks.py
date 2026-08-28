@@ -5,138 +5,23 @@ app_description = "Schedule a document field change or submit/cancel for a futur
 app_email = "sahannan96@gmail.com"
 app_license = "mit"
 
-# Apps
-# ------------------
-
-# required_apps = []
-
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "scheduled_actions",
-# 		"logo": "/assets/scheduled_actions/logo.png",
-# 		"title": "Scheduled Actions",
-# 		"route": "/scheduled_actions",
-# 		"has_permission": "scheduled_actions.api.permission.has_app_permission"
-# 	}
-# ]
-
-# Includes in <head>
-# ------------------
-
-# include js, css files in header of desk.html
-app_include_css = "/assets/scheduled_actions/css/schedule_sidebar.css"
+# Desk assets
+# -----------
 # value_control.js must load before schedule_menu.js - the latter calls into
 # the scheduled_actions.value_control namespace the former defines.
+app_include_css = "/assets/scheduled_actions/css/schedule_sidebar.css"
 app_include_js = [
 	"/assets/scheduled_actions/js/value_control.js",
 	"/assets/scheduled_actions/js/schedule_menu.js",
 ]
 
-# include js, css files in header of web template
-# web_include_css = "/assets/scheduled_actions/css/scheduled_actions.css"
-# web_include_js = "/assets/scheduled_actions/js/scheduled_actions.js"
-
-# include custom scss in every website theme (without file extension ".scss")
-# website_theme_scss = "scheduled_actions/public/scss/website"
-
-# include js, css files in header of web form
-# webform_include_js = {"doctype": "public/js/doctype.js"}
-# webform_include_css = {"doctype": "public/css/doctype.css"}
-
-# include js in page
-# page_js = {"page" : "public/js/file.js"}
-
-# include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
-# doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
-
-# Svg Icons
-# ------------------
-# include app icons in desk
-# app_include_icons = "scheduled_actions/public/icons.svg"
-
-# Home Pages
-# ----------
-
-# application home page (will override Website Settings)
-# home_page = "login"
-
-# website user home page (by Role)
-# role_home_page = {
-# 	"Role": "home_page"
-# }
-
-# Generators
-# ----------
-
-# automatically create page for each record of this doctype
-# website_generators = ["Web Page"]
-
-# automatically load and sync documents of this doctype from downstream apps
-# importable_doctypes = [doctype_1]
-
-# Jinja
-# ----------
-
-# add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "scheduled_actions.utils.jinja_methods",
-# 	"filters": "scheduled_actions.utils.jinja_filters"
-# }
-
-# Installation
-# ------------
-
-# before_install = "scheduled_actions.install.before_install"
-# after_install = "scheduled_actions.install.after_install"
-
-# Uninstallation
-# ------------
-
-# before_uninstall = "scheduled_actions.uninstall.before_uninstall"
-# after_uninstall = "scheduled_actions.uninstall.after_uninstall"
-
-# Integration Setup
-# ------------------
-# To set up dependencies/integrations with other apps
-# Name of the app being installed is passed as an argument
-
-# before_app_install = "scheduled_actions.utils.before_app_install"
-# after_app_install = "scheduled_actions.utils.after_app_install"
-
-# Integration Cleanup
-# -------------------
-# To clean up dependencies/integrations with other apps
-# Name of the app being uninstalled is passed as an argument
-
-# before_app_uninstall = "scheduled_actions.utils.before_app_uninstall"
-# after_app_uninstall = "scheduled_actions.utils.after_app_uninstall"
-
-# Desk Notifications
-# ------------------
-# See frappe.core.notifications.get_notification_config
-
-# notification_config = "scheduled_actions.notifications.get_notification_config"
-
-# Permissions
-# -----------
-# Permissions evaluated in scripted ways
-
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
-
-# Document Events
+# Document events
 # ---------------
-# Hook on document methods and events
-
+# Fired on every doctype (the schedule UI works anywhere):
+#  - on_update / on_cancel: a real change to a document with a Pending
+#    Scheduled Action cancels that action rather than blocking the edit.
+#  - on_trash: drop a deleted document's Scheduled Actions so its
+#    reference_name Dynamic Link doesn't block the delete.
 doc_events = {
 	"*": {
 		"on_update": "scheduled_actions.utils.cancel_pending_action_on_change",
@@ -145,106 +30,11 @@ doc_events = {
 	}
 }
 
-# Scheduled Tasks
+# Scheduled tasks
 # ---------------
-
+# run_due_actions runs every tick (it only looks up what's due and hands each
+# off to a background worker); cleanup_old_actions clears finished rows daily.
 scheduler_events = {
-	"cron": {
-		"* * * * *": [
-			"scheduled_actions.tasks.run_due_actions"
-		]
-	},
-	"daily": [
-		"scheduled_actions.tasks.cleanup_old_actions"
-	]
+	"cron": {"* * * * *": ["scheduled_actions.tasks.run_due_actions"]},
+	"daily": ["scheduled_actions.tasks.cleanup_old_actions"],
 }
-
-# Testing
-# -------
-
-# before_tests = "scheduled_actions.install.before_tests"
-
-# Extend DocType Class
-# ------------------------------
-#
-# Specify custom mixins to extend the standard doctype controller.
-# extend_doctype_class = {
-# 	"Task": "scheduled_actions.custom.task.CustomTaskMixin"
-# }
-
-# Overriding Methods
-# ------------------------------
-#
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "scheduled_actions.event.get_events"
-# }
-#
-# each overriding function accepts a `data` argument;
-# generated from the base implementation of the doctype dashboard,
-# along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "scheduled_actions.task.get_dashboard_data"
-# }
-
-# exempt linked doctypes from being automatically cancelled
-#
-# auto_cancel_exempted_doctypes = ["Auto Repeat"]
-
-# Ignore links to specified DocTypes when deleting documents
-# -----------------------------------------------------------
-
-# ignore_links_on_delete = ["Communication", "ToDo"]
-
-# Request Events
-# ----------------
-# before_request = ["scheduled_actions.utils.before_request"]
-# after_request = ["scheduled_actions.utils.after_request"]
-
-# Job Events
-# ----------
-# before_job = ["scheduled_actions.utils.before_job"]
-# after_job = ["scheduled_actions.utils.after_job"]
-
-# User Data Protection
-# --------------------
-
-# user_data_fields = [
-# 	{
-# 		"doctype": "{doctype_1}",
-# 		"filter_by": "{filter_by}",
-# 		"redact_fields": ["{field_1}", "{field_2}"],
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_2}",
-# 		"filter_by": "{filter_by}",
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_3}",
-# 		"strict": False,
-# 	},
-# 	{
-# 		"doctype": "{doctype_4}"
-# 	}
-# ]
-
-# Authentication and authorization
-# --------------------------------
-
-# auth_hooks = [
-# 	"scheduled_actions.auth.validate"
-# ]
-
-# Automatically update python controller files with type annotations for this app.
-# export_python_type_annotations = True
-
-# default_log_clearing_doctypes = {
-# 	"Logging DocType Name": 30  # days to retain logs
-# }
-
-# Translation
-# ------------
-# List of apps whose translatable strings should be excluded from this app's translations.
-# ignore_translatable_strings_from = []
-
