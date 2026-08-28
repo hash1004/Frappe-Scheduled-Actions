@@ -1,0 +1,9 @@
+{
+ "name": "scheduled_actions",
+ "version": "0.0.1",
+ "private": true,
+ "description": "Client-side test runner for the Scheduled Actions app",
+ "scripts": {
+  "test": "node --test \"scheduled_actions/**/*.test.js\""
+ }
+}

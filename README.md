@@ -102,12 +102,20 @@ bench install-app scheduled_actions
 
 ### Testing
 
-This app ships with an automated test suite. Tests need to be enabled on
-the site once:
+Server side (Python) - tests need to be enabled on the site once:
 
 ```bash
 bench --site $SITE_NAME set-config allow_tests true
 bench --site $SITE_NAME run-tests --app scheduled_actions
+```
+
+Client side - the value-control logic (field-category mapping, the
+mirror-to-`field_value` sync) is unit-tested with Node's built-in runner,
+no dependencies:
+
+```bash
+cd apps/scheduled_actions
+npm test
 ```
 
 ### Contributing
