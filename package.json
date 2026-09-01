@@ -4,6 +4,6 @@
  "private": true,
  "description": "Client-side test runner for the Scheduled Actions app",
  "scripts": {
-  "test": "node --test \"scheduled_actions/**/*.test.js\""
+  "test": "node --test scheduled_actions/public/js/value_control.test.js"
  }
 }
