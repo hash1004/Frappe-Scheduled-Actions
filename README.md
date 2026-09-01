@@ -90,9 +90,28 @@ Frappe scheduler offers.) If you schedule a lot of actions on a busy
 bench, consider giving them a dedicated worker queue so they don't wait
 behind other background jobs.
 
+### Screenshots
+
+Open any document, click **Schedule...** in the sidebar, and pick what
+should happen and when - the value control matches the field's type:
+
+![The Schedule Action dialog, setting a Color field with a run-at time and an optional condition](docs/images/schedule-dialog.png)
+
+The document stays editable while an action is pending; a non-blocking
+heads-up shows what's scheduled, and actually changing the document
+cancels it:
+
+![A document form showing a yellow heads-up that an action is scheduled](docs/images/pending-heads-up.png)
+
+Every action is its own record, with a plain-language status - Pending,
+Executed, Failed, Skipped, or Overdue (Pending but past its time):
+
+![The Scheduled Action list view showing rows in various statuses](docs/images/scheduled-action-list.png)
+
 ### Installation
 
-You can install this app using the [bench](https://github.com/frappe/bench) CLI:
+**Requires Frappe v15+** (developed and tested on v16). You can install
+this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
@@ -136,4 +155,4 @@ Pre-commit is configured to use the following tools for checking and formatting 
 
 ### License
 
-mit
+MIT

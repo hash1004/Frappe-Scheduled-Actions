@@ -1,0 +1,12 @@
+# Normalise line endings: everything is LF in the repo and on checkout,
+# regardless of a contributor's core.autocrlf setting.
+* text=auto eol=lf
+
+# Explicitly binary - never touched by EOL normalisation or diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

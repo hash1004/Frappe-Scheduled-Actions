@@ -3,7 +3,7 @@ app_title = "Scheduled Actions"
 app_publisher = "Abdul Hannan"
 app_description = "Schedule a document field change or submit/cancel for a future date and time"
 app_email = "sahannan96@gmail.com"
-app_license = "mit"
+app_license = "MIT"
 
 # Desk assets
 # -----------
