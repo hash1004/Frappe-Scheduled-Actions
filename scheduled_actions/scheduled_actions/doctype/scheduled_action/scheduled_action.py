@@ -85,6 +85,18 @@ class ScheduledAction(Document):
 			)
 
 	def validate_action(self):
+		if self.action_type in ("Submit", "Cancel"):
+			# A non-submittable doctype has no docstatus to move - the dialog
+			# never offers Submit/Cancel there, but the raw create API (and a
+			# System Manager on the form) could still set it. Reject it here
+			# rather than let it sit Pending and fail at execution.
+			if not frappe.get_meta(self.reference_doctype).is_submittable:
+				frappe.throw(
+					_("{0} is not submittable - a {1} action can't run against it").format(
+						self.reference_doctype, self.action_type
+					)
+				)
+
 		if self.action_type == "Set Field":
 			if not self.field_name:
 				frappe.throw(_("Field Name is required for a Set Field action"))
