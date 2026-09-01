@@ -110,8 +110,8 @@ Executed, Failed, Skipped, or Overdue (Pending but past its time):
 
 ### Installation
 
-**Requires Frappe v15+** (developed and tested on v16). You can install
-this app using the [bench](https://github.com/frappe/bench) CLI:
+**Requires Frappe v16.** You can install this app using the
+[bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
