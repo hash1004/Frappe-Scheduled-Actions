@@ -113,7 +113,13 @@ function gate_action_type(frm) {
 		const submittable = !!(meta && meta.is_submittable);
 
 		frm.set_df_property("action_type", "read_only", submittable ? 0 : 1);
-		if (!submittable && frm.doc.action_type !== "Set Field") {
+
+		// Snap a stale "Submit"/"Cancel" back to the only thing a
+		// non-submittable doctype supports - but only while the action can
+		// still be edited. Once it's run (or been cancelled) it's a record;
+		// rewriting its Action Type on load would misreport what happened.
+		const editable = frm.is_new() || frm.doc.status === "Pending";
+		if (editable && !submittable && frm.doc.action_type !== "Set Field") {
 			frm.set_value("action_type", "Set Field");
 		}
 	});

@@ -57,6 +57,23 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			doc.insert(ignore_permissions=True)
 
+	def test_submit_action_on_non_submittable_doctype_is_rejected(self):
+		# ToDo isn't submittable and isn't on the denylist. The dialog never
+		# offers Submit/Cancel for it, but the raw create API could - and
+		# such an action would only sit Pending and then fail at run time.
+		todo = frappe.get_doc(
+			{"doctype": "ToDo", "description": "sa non-submittable target"}
+		).insert(ignore_permissions=True)
+		doc = frappe.get_doc({
+			"doctype": "Scheduled Action",
+			"reference_doctype": "ToDo",
+			"reference_name": todo.name,
+			"action_type": "Submit",
+			"scheduled_for": near_future_datetime(),
+		})
+		with self.assertRaises(frappe.ValidationError):
+			doc.insert(ignore_permissions=True)
+
 	def test_nonexistent_document_is_rejected(self):
 		doc = frappe.get_doc({
 			"doctype": "Scheduled Action",
