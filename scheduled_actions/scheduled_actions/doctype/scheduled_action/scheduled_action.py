@@ -118,7 +118,9 @@ class ScheduledAction(Document):
 			# from the picker; this is the enforcement behind it.
 			if df.read_only or df.hidden:
 				frappe.throw(
-					_("{0} is read-only or hidden - it can't be scheduled").format(df.label or self.field_name)
+					_("{0} is read-only or hidden - it can't be scheduled").format(
+						df.label or self.field_name
+					)
 				)
 
 			# Doctype-level write permission (checked in validate_reference) says

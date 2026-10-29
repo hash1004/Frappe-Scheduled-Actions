@@ -19,14 +19,16 @@ def make_test_doc(**kwargs):
 	original_user = frappe.session.user
 	frappe.set_user("Administrator")
 	try:
-		doc = frappe.get_doc({
-			"doctype": TEST_DOCTYPE,
-			"title": kwargs.pop("title", f"SA Test {uuid.uuid4().hex[:10]}"),
-			"category": kwargs.pop("category", "Alpha"),
-			"is_flagged": kwargs.pop("is_flagged", 0),
-			"amount": kwargs.pop("amount", 1.0),
-			**kwargs,
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": TEST_DOCTYPE,
+				"title": kwargs.pop("title", f"SA Test {uuid.uuid4().hex[:10]}"),
+				"category": kwargs.pop("category", "Alpha"),
+				"is_flagged": kwargs.pop("is_flagged", 0),
+				"amount": kwargs.pop("amount", 1.0),
+				**kwargs,
+			}
+		)
 		doc.insert(ignore_permissions=True)
 		return doc
 	finally:
@@ -48,12 +50,14 @@ def make_test_user(roles=(), key=None):
 	if frappe.db.exists("User", email):
 		user = frappe.get_doc("User", email)
 	else:
-		user = frappe.get_doc({
-			"doctype": "User",
-			"email": email,
-			"first_name": "SA Test User",
-			"send_welcome_email": 0,
-		})
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "SA Test User",
+				"send_welcome_email": 0,
+			}
+		)
 		user.insert(ignore_permissions=True)
 
 	existing_roles = {r.role for r in user.roles}

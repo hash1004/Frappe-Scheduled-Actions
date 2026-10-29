@@ -12,9 +12,11 @@ frappe.provide("scheduled_actions");
 scheduled_actions._blocked_doctypes_promise = null;
 scheduled_actions.get_blocked_doctypes = function () {
 	if (!scheduled_actions._blocked_doctypes_promise) {
-		scheduled_actions._blocked_doctypes_promise = frappe.call({
-			method: "scheduled_actions.api.get_blocked_doctypes",
-		}).then((r) => r.message || []);
+		scheduled_actions._blocked_doctypes_promise = frappe
+			.call({
+				method: "scheduled_actions.api.get_blocked_doctypes",
+			})
+			.then((r) => r.message || []);
 	}
 	return scheduled_actions._blocked_doctypes_promise;
 };
@@ -211,7 +213,8 @@ scheduled_actions.open_dialog = function (frm) {
 			fieldtype: "Data",
 			label: __("New Value"),
 			depends_on: 'eval:doc.action_type=="Set Field" && doc.target_fieldtype=="text"',
-			mandatory_depends_on: 'eval:doc.action_type=="Set Field" && doc.target_fieldtype=="text"',
+			mandatory_depends_on:
+				'eval:doc.action_type=="Set Field" && doc.target_fieldtype=="text"',
 		},
 		{
 			fieldname: "scheduled_for",
@@ -302,7 +305,11 @@ scheduled_actions.open_dialog = function (frm) {
 				? frappe
 						.call({
 							method: "scheduled_actions.api.resolve_dynamic_link_doctype",
-							args: { doctype: frm.doctype, name: frm.docname, fieldname: df.fieldname },
+							args: {
+								doctype: frm.doctype,
+								name: frm.docname,
+								fieldname: df.fieldname,
+							},
 						})
 						.then((r) => r.message)
 				: Promise.resolve(undefined);

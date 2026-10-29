@@ -30,15 +30,17 @@ PERMITTED_FIELDS_PATCH_TARGET = (
 
 class IntegrationTestScheduledAction(IntegrationTestCase):
 	def test_blocked_doctype_is_rejected(self):
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": "User",
-			"reference_name": "Administrator",
-			"action_type": "Set Field",
-			"field_name": "full_name",
-			"field_value": "Hacked",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": "User",
+				"reference_name": "Administrator",
+				"action_type": "Set Field",
+				"field_name": "full_name",
+				"field_value": "Hacked",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.PermissionError):
 			doc.insert(ignore_permissions=True)
 
@@ -47,13 +49,15 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		if not single:
 			self.skipTest("no Single doctype available on this site to test against")
 
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": single,
-			"reference_name": single,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": single,
+				"reference_name": single,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.PermissionError):
 			doc.insert(ignore_permissions=True)
 
@@ -61,48 +65,56 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		# ToDo isn't submittable and isn't on the denylist. The dialog never
 		# offers Submit/Cancel for it, but the raw create API could - and
 		# such an action would only sit Pending and then fail at run time.
-		todo = frappe.get_doc(
-			{"doctype": "ToDo", "description": "sa non-submittable target"}
-		).insert(ignore_permissions=True)
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": "ToDo",
-			"reference_name": todo.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		todo = frappe.get_doc({"doctype": "ToDo", "description": "sa non-submittable target"}).insert(
+			ignore_permissions=True
+		)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": "ToDo",
+				"reference_name": todo.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
 	def test_nonexistent_document_is_rejected(self):
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": "does-not-exist-at-all",
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": "does-not-exist-at-all",
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
 	def test_duplicate_pending_action_is_rejected(self):
 		target = make_test_doc()
-		first = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		first = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		first.insert(ignore_permissions=True)
 
-		second = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(60),
-		})
+		second = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(60),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			second.insert(ignore_permissions=True)
 
@@ -113,15 +125,17 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		original_user = frappe.session.user
 		frappe.set_user(plain_user)
 		try:
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Set Field",
-				"field_name": "category",
-				"field_value": "Beta",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Set Field",
+					"field_name": "category",
+					"field_value": "Beta",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.PermissionError):
 				doc.insert()
 		finally:
@@ -134,13 +148,15 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		original_user = frappe.session.user
 		frappe.set_user(plain_user)
 		try:
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Submit",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Submit",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.PermissionError):
 				doc.insert()
 		finally:
@@ -148,27 +164,31 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 
 	def test_unknown_field_name_is_rejected(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Set Field",
-			"field_name": "this_field_does_not_exist",
-			"field_value": "x",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Set Field",
+				"field_name": "this_field_does_not_exist",
+				"field_value": "x",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
 	def test_field_name_required_for_set_field(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Set Field",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Set Field",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
@@ -178,30 +198,34 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		# when a mirror-sync doesn't fire, see scheduled_action.js).
 		target = make_test_doc()
 		for empty in ("", None):
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Set Field",
-				"field_name": "category",
-				"field_value": empty,
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Set Field",
+					"field_name": "category",
+					"field_value": empty,
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.ValidationError, msg=f"field_value={empty!r}"):
 				doc.insert(ignore_permissions=True)
 
 	def test_falsy_but_real_field_value_allowed_for_set_field(self):
 		# "0" from a Check/number mirror is a real value, not "empty".
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Set Field",
-			"field_name": "is_flagged",
-			"field_value": "0",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Set Field",
+				"field_name": "is_flagged",
+				"field_value": "0",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		doc.insert(ignore_permissions=True)  # must not raise
 		self.assertEqual(doc.field_value, "0")
 
@@ -210,15 +234,17 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		# form, so scheduling a change to it makes no sense.
 		target = make_test_doc()
 		for fieldname in ("internal_flag", "computed_score"):
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Set Field",
-				"field_name": fieldname,
-				"field_value": "1",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Set Field",
+					"field_name": fieldname,
+					"field_value": "1",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.ValidationError, msg=fieldname):
 				doc.insert(ignore_permissions=True)
 
@@ -230,42 +256,48 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		# test; ours is just "do we actually call it and honor the result".
 		target = make_test_doc()
 		with patch(PERMITTED_FIELDS_PATCH_TARGET, return_value=["title"]):
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Set Field",
-				"field_name": "amount",  # not in the mocked permitted list
-				"field_value": "5",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Set Field",
+					"field_name": "amount",  # not in the mocked permitted list
+					"field_value": "5",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.PermissionError):
 				doc.insert(ignore_permissions=True)
 
 	def test_permlevel_write_check_allows_field_in_permitted_list(self):
 		target = make_test_doc()
 		with patch(PERMITTED_FIELDS_PATCH_TARGET, return_value=["title", "amount"]):
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Set Field",
-				"field_name": "amount",
-				"field_value": "5",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Set Field",
+					"field_name": "amount",
+					"field_value": "5",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			doc.insert(ignore_permissions=True)  # must not raise
 			self.assertEqual(doc.status, "Pending")
 
 	def test_past_schedule_is_rejected_on_create(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=-30),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": frappe.utils.add_to_date(frappe.utils.now_datetime(), seconds=-30),
+			}
+		)
 		with self.assertRaises(frappe.ValidationError):
 			doc.insert(ignore_permissions=True)
 
@@ -287,13 +319,15 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 		original_user = frappe.session.user
 		frappe.set_user(scheduler)
 		try:
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Submit",
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Submit",
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			doc.insert()
 			self.assertEqual(doc.scheduled_by, scheduler)
 		finally:
@@ -311,38 +345,44 @@ class IntegrationTestScheduledAction(IntegrationTestCase):
 	def test_invalid_condition_expression_is_rejected(self):
 		target = make_test_doc()
 		for bad in ("doc.status = 'Open'", "doc.status ==", "(1 + "):
-			doc = frappe.get_doc({
-				"doctype": "Scheduled Action",
-				"reference_doctype": TEST_DOCTYPE,
-				"reference_name": target.name,
-				"action_type": "Submit",
-				"condition": bad,
-				"scheduled_for": near_future_datetime(),
-			})
+			doc = frappe.get_doc(
+				{
+					"doctype": "Scheduled Action",
+					"reference_doctype": TEST_DOCTYPE,
+					"reference_name": target.name,
+					"action_type": "Submit",
+					"condition": bad,
+					"scheduled_for": near_future_datetime(),
+				}
+			)
 			with self.assertRaises(frappe.ValidationError, msg=bad):
 				doc.insert(ignore_permissions=True)
 
 	def test_valid_condition_expression_is_accepted(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"condition": 'doc.category == "Alpha" and doc.amount > 0',
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"condition": 'doc.category == "Alpha" and doc.amount > 0',
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		doc.insert(ignore_permissions=True)  # must not raise
 
 	def test_a_cancelled_action_cannot_be_edited(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		doc.insert(ignore_permissions=True)
 		frappe.db.set_value("Scheduled Action", doc.name, "status", "Cancelled")  # the manual-cancel path
 		frappe.db.commit()

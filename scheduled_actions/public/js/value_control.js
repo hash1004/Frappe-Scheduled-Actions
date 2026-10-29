@@ -165,8 +165,15 @@ function current_value_of(host, fieldname) {
 // Link, df.options isn't the target doctype itself but the *fieldname*
 // that holds it - the caller resolves that (see
 // api.resolve_dynamic_link_doctype) and passes the actual doctype name in.
-scheduled_actions.value_control.apply_field_pick = function (host, df, current_value, link_doctype_override) {
-	const category = df ? scheduled_actions.value_control.category_for_fieldtype(df.fieldtype) : "text";
+scheduled_actions.value_control.apply_field_pick = function (
+	host,
+	df,
+	current_value,
+	link_doctype_override
+) {
+	const category = df
+		? scheduled_actions.value_control.category_for_fieldtype(df.fieldtype)
+		: "text";
 
 	if (category === "select") {
 		host.set_df_property("field_value_select", "options", df.options || "");
@@ -188,7 +195,10 @@ scheduled_actions.value_control.apply_field_pick = function (host, df, current_v
 
 	const mirror = scheduled_actions.value_control.MIRROR_FIELD_BY_CATEGORY[category];
 	if (mirror && current_value !== null && current_value !== undefined && current_value !== "") {
-		host.set_value(mirror, scheduled_actions.value_control.cast_for_mirror(category, current_value));
+		host.set_value(
+			mirror,
+			scheduled_actions.value_control.cast_for_mirror(category, current_value)
+		);
 	}
 };
 

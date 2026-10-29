@@ -104,7 +104,9 @@ def execute_action(name):
 		elif action.action_type == "Set Field":
 			from frappe.model import get_permitted_fields
 
-			from scheduled_actions.scheduled_actions.doctype.scheduled_action.scheduled_action import cast_value
+			from scheduled_actions.scheduled_actions.doctype.scheduled_action.scheduled_action import (
+				cast_value,
+			)
 
 			# Field-level (permlevel) permission can drift between scheduling
 			# and execution too, same as the doctype-level check above.
