@@ -137,12 +137,14 @@ def get_settable_fields(doctype, name=None):
 			continue
 		if doc is not None and not _depends_on_holds(doc, df.depends_on):
 			continue
-		out.append({
-			"fieldname": df.fieldname,
-			"label": df.label or df.fieldname,
-			"fieldtype": df.fieldtype,
-			"options": df.options,
-		})
+		out.append(
+			{
+				"fieldname": df.fieldname,
+				"label": df.label or df.fieldname,
+				"fieldtype": df.fieldtype,
+				"options": df.options,
+			}
+		)
 	return out
 
 
@@ -185,7 +187,9 @@ def get_field_current_value(doctype, name, fieldname):
 		frappe.throw(_("You do not have permission to read {0}").format(fieldname), frappe.PermissionError)
 
 	if not frappe.has_permission(doctype, "read", doc=name):
-		frappe.throw(_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError)
+		frappe.throw(
+			_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError
+		)
 
 	return frappe.db.get_value(doctype, name, fieldname)
 
@@ -216,6 +220,8 @@ def resolve_dynamic_link_doctype(doctype, name, fieldname):
 		)
 
 	if not frappe.has_permission(doctype, "read", doc=name):
-		frappe.throw(_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError)
+		frappe.throw(
+			_("You do not have permission to read {0} {1}").format(doctype, name), frappe.PermissionError
+		)
 
 	return frappe.db.get_value(doctype, name, controlling_fieldname)

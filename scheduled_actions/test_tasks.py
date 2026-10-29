@@ -35,14 +35,16 @@ def _schedule(target, action_type, **kwargs):
 	"""A Scheduled Action already due (scheduled_for pushed into the past
 	after insert, same pattern validate_schedule() forces everywhere else -
 	see due_datetime()'s docstring)."""
-	doc = frappe.get_doc({
-		"doctype": "Scheduled Action",
-		"reference_doctype": TEST_DOCTYPE,
-		"reference_name": target.name,
-		"action_type": action_type,
-		"scheduled_for": near_future_datetime(),
-		**kwargs,
-	})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": action_type,
+			"scheduled_for": near_future_datetime(),
+			**kwargs,
+		}
+	)
 	doc.insert(ignore_permissions=True)
 	frappe.db.set_value("Scheduled Action", doc.name, "scheduled_for", due_datetime())
 	frappe.db.commit()
@@ -104,7 +106,11 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 	def test_condition_true_lets_the_action_run(self):
 		target = make_test_doc(category="Alpha")
 		name = _schedule(
-			target, "Set Field", field_name="category", field_value="Beta", condition='doc.category == "Alpha"'
+			target,
+			"Set Field",
+			field_name="category",
+			field_value="Beta",
+			condition='doc.category == "Alpha"',
 		)
 
 		execute_action(name)
@@ -115,7 +121,11 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 	def test_condition_false_skips_the_action(self):
 		target = make_test_doc(category="Alpha")
 		name = _schedule(
-			target, "Set Field", field_name="category", field_value="Beta", condition='doc.category == "Gamma"'
+			target,
+			"Set Field",
+			field_name="category",
+			field_value="Beta",
+			condition='doc.category == "Gamma"',
 		)
 
 		execute_action(name)
@@ -160,9 +170,7 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 		from scheduled_actions.api import retry_action
 
 		target = make_test_doc(category="Alpha")
-		name = _schedule(
-			target, "Set Field", field_name="category", field_value="Beta", condition="1 == 2"
-		)
+		name = _schedule(target, "Set Field", field_name="category", field_value="Beta", condition="1 == 2")
 		execute_action(name)
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Skipped")
 
@@ -374,7 +382,11 @@ class IntegrationTestScheduledActionTasks(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value("Scheduled Action", name, "status"), "Executed")
 
 		frappe.db.set_value(
-			"Scheduled Action", name, "modified", add_to_date(now_datetime(), days=-100), update_modified=False
+			"Scheduled Action",
+			name,
+			"modified",
+			add_to_date(now_datetime(), days=-100),
+			update_modified=False,
 		)
 		frappe.db.commit()
 

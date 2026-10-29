@@ -15,13 +15,15 @@ from scheduled_actions.utils import BLOCKED_DOCTYPES, ensure_doctype_allowed, ge
 
 
 def _schedule(target):
-	doc = frappe.get_doc({
-		"doctype": "Scheduled Action",
-		"reference_doctype": TEST_DOCTYPE,
-		"reference_name": target.name,
-		"action_type": "Submit",
-		"scheduled_for": near_future_datetime(),
-	})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Scheduled Action",
+			"reference_doctype": TEST_DOCTYPE,
+			"reference_name": target.name,
+			"action_type": "Submit",
+			"scheduled_for": near_future_datetime(),
+		}
+	)
 	doc.insert(ignore_permissions=True)
 	return doc.name
 

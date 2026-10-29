@@ -31,13 +31,9 @@ BLOCKED_DOCTYPES = frozenset(core_doctypes_list) | {
 def ensure_doctype_allowed(doctype):
 	"""Raises if `doctype` is not a valid target for a Scheduled Action."""
 	if doctype in BLOCKED_DOCTYPES:
-		frappe.throw(
-			_("Scheduling actions on {0} is not allowed").format(doctype), frappe.PermissionError
-		)
+		frappe.throw(_("Scheduling actions on {0} is not allowed").format(doctype), frappe.PermissionError)
 	if frappe.get_meta(doctype).issingle:
-		frappe.throw(
-			_("Scheduling actions on single doctypes is not supported"), frappe.PermissionError
-		)
+		frappe.throw(_("Scheduling actions on single doctypes is not supported"), frappe.PermissionError)
 
 
 def cancel_pending_action_on_change(doc, method=None):
@@ -95,9 +91,9 @@ def cancel_pending_action_on_change(doc, method=None):
 		),
 	)
 	frappe.msgprint(
-		_("{0} was cancelled because you changed this document. Schedule it again if you still need it.").format(
-			frappe.utils.get_link_to_form("Scheduled Action", pending)
-		),
+		_(
+			"{0} was cancelled because you changed this document. Schedule it again if you still need it."
+		).format(frappe.utils.get_link_to_form("Scheduled Action", pending)),
 		title=_("Scheduled action cancelled"),
 		indicator="orange",
 	)
@@ -105,16 +101,18 @@ def cancel_pending_action_on_change(doc, method=None):
 	# Whoever scheduled the action may not be whoever just changed the
 	# document - let them know it won't run.
 	if scheduled_by and scheduled_by != frappe.session.user:
-		frappe.get_doc({
-			"doctype": "Notification Log",
-			"for_user": scheduled_by,
-			"type": "Alert",
-			"subject": _("Scheduled {0} on {1} {2} was cancelled (document changed)").format(
-				action_type, doc.doctype, doc.name
-			),
-			"document_type": "Scheduled Action",
-			"document_name": pending,
-		}).insert(ignore_permissions=True)
+		frappe.get_doc(
+			{
+				"doctype": "Notification Log",
+				"for_user": scheduled_by,
+				"type": "Alert",
+				"subject": _("Scheduled {0} on {1} {2} was cancelled (document changed)").format(
+					action_type, doc.doctype, doc.name
+				),
+				"document_type": "Scheduled Action",
+				"document_name": pending,
+			}
+		).insert(ignore_permissions=True)
 
 
 def clear_actions_on_target_delete(doc, method=None):

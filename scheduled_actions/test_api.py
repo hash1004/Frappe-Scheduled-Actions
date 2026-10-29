@@ -100,8 +100,9 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 
 	def test_get_field_current_value_throws_without_document_read_permission(self):
 		target = make_test_doc()
-		with patch(GET_PERMITTED_FIELDS_TARGET, return_value=["category"]), patch(
-			"scheduled_actions.api.frappe.has_permission", return_value=False
+		with (
+			patch(GET_PERMITTED_FIELDS_TARGET, return_value=["category"]),
+			patch("scheduled_actions.api.frappe.has_permission", return_value=False),
 		):
 			with self.assertRaises(frappe.PermissionError):
 				get_field_current_value(TEST_DOCTYPE, target.name, "category")
@@ -157,13 +158,15 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 
 	def test_retry_action_requeues_a_failed_action(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		doc.insert(ignore_permissions=True)
 		frappe.db.set_value("Scheduled Action", doc.name, "scheduled_for", due_datetime())
 		frappe.db.commit()
@@ -189,13 +192,15 @@ class IntegrationTestScheduledActionsApi(IntegrationTestCase):
 
 	def test_retry_action_rejects_a_non_failed_action(self):
 		target = make_test_doc()
-		doc = frappe.get_doc({
-			"doctype": "Scheduled Action",
-			"reference_doctype": TEST_DOCTYPE,
-			"reference_name": target.name,
-			"action_type": "Submit",
-			"scheduled_for": near_future_datetime(),
-		})
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Action",
+				"reference_doctype": TEST_DOCTYPE,
+				"reference_name": target.name,
+				"action_type": "Submit",
+				"scheduled_for": near_future_datetime(),
+			}
+		)
 		doc.insert(ignore_permissions=True)  # still Pending
 
 		with self.assertRaises(frappe.ValidationError):

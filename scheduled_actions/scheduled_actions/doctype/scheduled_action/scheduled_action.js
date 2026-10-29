@@ -24,14 +24,19 @@ const scheduled_action_handlers = {
 		// available for Failed / Skipped via the custom button below; it
 		// goes through api.retry_action, not a form save.)
 		// validate_not_finished() enforces the same server-side.
-		if (!frm.is_new() && ["Executed", "Failed", "Cancelled", "Skipped"].includes(frm.doc.status)) {
+		if (
+			!frm.is_new() &&
+			["Executed", "Failed", "Cancelled", "Skipped"].includes(frm.doc.status)
+		) {
 			frm.disable_form();
 		}
 
 		if (frm.doc.status === "Pending" && !frm.is_new()) {
 			frm.add_custom_button(__("Cancel Action"), () => {
 				frappe.confirm(__("Cancel this scheduled action?"), () => {
-					frappe.db.set_value(frm.doctype, frm.docname, "status", "Cancelled").then(() => frm.reload_doc());
+					frappe.db
+						.set_value(frm.doctype, frm.docname, "status", "Cancelled")
+						.then(() => frm.reload_doc());
 				});
 			});
 		}
@@ -83,7 +88,6 @@ const scheduled_action_handlers = {
 		}
 		apply_current_field(frm, undefined); // fetches the current value itself
 	},
-
 };
 
 // One change handler per mirror control, keeping the persisted field_value
@@ -92,10 +96,12 @@ const scheduled_action_handlers = {
 // be silently missed here (Color/Time/Duration edits used to not persist
 // on this form for exactly that reason - the Dialog wired them, this
 // didn't).
-Object.entries(scheduled_actions.value_control.MIRROR_FIELD_BY_CATEGORY).forEach(([category, fieldname]) => {
-	scheduled_action_handlers[fieldname] = (frm) =>
-		scheduled_actions.value_control.sync_mirror_to_field_value(frm, category);
-});
+Object.entries(scheduled_actions.value_control.MIRROR_FIELD_BY_CATEGORY).forEach(
+	([category, fieldname]) => {
+		scheduled_action_handlers[fieldname] = (frm) =>
+			scheduled_actions.value_control.sync_mirror_to_field_value(frm, category);
+	}
+);
 
 frappe.ui.form.on("Scheduled Action", scheduled_action_handlers);
 
@@ -146,7 +152,11 @@ function build_field_name_options(frm, on_done) {
 			frm._settable_fields_by_name = {};
 			fields_list.forEach((df) => (frm._settable_fields_by_name[df.fieldname] = df));
 
-			frm.set_df_property("field_name", "options", [""].concat(fields_list.map((df) => df.fieldname)));
+			frm.set_df_property(
+				"field_name",
+				"options",
+				[""].concat(fields_list.map((df) => df.fieldname))
+			);
 			frm.refresh_field("field_name");
 			on_done && on_done();
 		},
@@ -162,8 +172,11 @@ function build_field_name_options(frm, on_done) {
 function apply_current_field(frm, prefill_from) {
 	const df = (frm._settable_fields_by_name || {})[frm.doc.field_name];
 
-	frm.set_df_property("field_name", "description",
-		df ? __("{0} ({1})", [df.label, df.fieldtype]) : __("Pick a Document Type first"));
+	frm.set_df_property(
+		"field_name",
+		"description",
+		df ? __("{0} ({1})", [df.label, df.fieldtype]) : __("Pick a Document Type first")
+	);
 
 	if (!df) {
 		scheduled_actions.value_control.apply_field_pick(frm, null, prefill_from);

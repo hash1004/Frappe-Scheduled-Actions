@@ -25,6 +25,7 @@
 	},
 	"root": true,
 	"globals": {
+		"scheduled_actions": true,
 		"frappe": true,
 		"Vue": true,
 		"SetVueGlobals": true,
